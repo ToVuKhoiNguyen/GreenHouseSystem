@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+
+<!-- FONT -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+<!-- LIB -->
+<script src="https://cdn.jsdelivr.net/npm/gaugeJS/dist/gauge.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<title>Smart Greenhouse Pro</title>
+
+<style>
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+/* HEADER */
+.header {
+    padding: 20px;
+    font-size: 22px;
+    font-weight: 600;
+    background: #111827;
+    border-bottom: 1px solid #1f2937;
+}
+
+/* GRID */
+.container {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    padding: 20px;
+}
+
+/* CARD */
+.card {
+    background: #1e293b;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+
+/* SENSOR GRID */
+.row {
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    gap: 15px;
+}
+
+.sensor {
+    text-align: center;
+}
+
+.sensor h4 {
+    font-weight: 400;
+    color: #94a3b8;
+}
+
+.value {
+    font-size: 22px;
+    font-weight: 600;
+    margin-top: 5px;
+}
+
+/* CONTROL */
+.control-card {
+    background: #1e293b;
+    padding: 15px;
+    border-radius: 14px;
+}
+
+.control-title {
+    margin-bottom: 10px;
+    color: #94a3b8;
+}
+
+/* BUTTON */
+.control-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: 0.25s;
+}
+
+.control-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* COLORS */
+.mode-auto { background: linear-gradient(45deg,#22c55e,#16a34a); }
+.mode-normal { background: #64748b; }
+
+.light.on { background: linear-gradient(45deg,#f59e0b,#d97706); }
+.fan.on { background: linear-gradient(45deg,#38bdf8,#0284c7); }
+.pump.on { background: linear-gradient(45deg,#22c55e,#166534); }
+.spray.on { background: linear-gradient(45deg,#6366f1,#4338ca); }
+
+.off { background: #334155 !important; }
+
+.disabled {
+    opacity: 0.4;
+}
+
+/* CAMERA */
+img {
+    width: 100%;
+    border-radius: 12px;
+    margin-top: 10px;
+}
+
+/* CHART */
+#tempChart {
+    width: 100% !important;
+    height: 250px !important;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">🌱 Smart Greenhouse Dashboard</div>
+
+<div class="container">
+
+<!-- LEFT -->
+<div>
+
+<div class="card">
+<div class="row">
+
+<div class="sensor">
+<h4>Temperature</h4>
+<canvas id="gaugeTemp"></canvas>
+<div class="value" id="temp">--</div>
+</div>
+
+<div class="sensor">
+<h4>Humidity</h4>
+<canvas id="gaugeHum"></canvas>
+<div class="value" id="hum">--</div>
+</div>
+
+<div class="sensor">
+<h4>Soil</h4>
+<canvas id="gaugeSoil"></canvas>
+<div class="value" id="soil">--</div>
+</div>
+
+<div class="sensor">
+<h4>Lux</h4>
+<canvas id="gaugeLux"></canvas>
+<div class="value" id="lux">--</div>
+</div>
+
+</div>
+</div>
+
+<br>
+
+<div class="card">
+<h3>📷 Camera AI</h3>
+<img id="camera">
+</div>
+
+<br>
+
+<div class="card">
+<h3>📊 Temperature History</h3>
+<canvas id="tempChart"></canvas>
+</div>
+
+</div>
+
+<!-- RIGHT -->
+<div>
+
+<div class="control-card">
+<div class="control-title">Mode</div>
+<button id="modeBtn" class="control-btn" onclick="toggleMode()">AUTO</button>
+</div>
+
+<br>
+
+<div class="control-card">
+<div class="control-title">Light</div>
+<button id="lightBtn" class="control-btn light" onclick="toggle(4)">--</button>
+</div>
+
+<br>
+
+<div class="control-card">
+<div class="control-title">Fan</div>
+<button id="fanBtn" class="control-btn fan" onclick="toggle(5)">--</button>
+</div>
+
+<br>
+
+<div class="control-card">
+<div class="control-title">Pump</div>
+<button id="pumpBtn" class="control-btn pump" onclick="toggle(6)">--</button>
+</div>
+
+<br>
+
+<div class="control-card">
+<div class="control-title">Spray</div>
+<button id="sprayBtn" class="control-btn spray" onclick="toggle(8)">--</button>
+</div>
+
+</div>
+
+</div>
+
+<script>
+const TOKEN = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4";
+const BASE = `https://blynk.cloud/external/api`;
+
+let isAuto = false;
+
+/* GAUGE */
+function createGauge(id) {
+    let gauge = new Gauge(document.getElementById(id)).setOptions({
+        angle: -0.2,
+        lineWidth: 0.15,
+        pointer: { length: 0.7, strokeWidth: 0.02 },
+        staticZones: [
+            {strokeStyle: "#22c55e", min: 0, max: 40},
+            {strokeStyle: "#facc15", min: 40, max: 70},
+            {strokeStyle: "#ef4444", min: 70, max: 100}
+        ]
+    });
+    gauge.maxValue = 100;
+    gauge.setMinValue(0);
+    return gauge;
+}
+
+const gTemp = createGauge("gaugeTemp");
+const gHum = createGauge("gaugeHum");
+const gSoil = createGauge("gaugeSoil");
+const gLux = createGauge("gaugeLux");
+
+/* CHART */
+let tempData = [];
+let labels = [];
+
+const tempChart = new Chart(document.getElementById("tempChart"), {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Temperature (°C)',
+            data: tempData,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34,197,94,0.2)',
+            tension: 0.4,
+            fill: true,
+            pointRadius: 2
+        }]
+    },
+    options: {
+        plugins: {
+            legend: { labels: { color: '#e2e8f0' } }
+        },
+        scales: {
+            x: { ticks: { color: '#94a3b8' } },
+            y: { ticks: { color: '#94a3b8' } }
+        }
+    }
+});
+
+function updateChart(temp){
+    let time = new Date().toLocaleTimeString();
+
+    labels.push(time);
+    tempData.push(temp);
+
+    if(labels.length > 15){
+        labels.shift();
+        tempData.shift();
+    }
+
+    tempChart.update();
+}
+
+/* API */
+async function getValue(pin) {
+    let res = await fetch(`${BASE}/get?token=${TOKEN}&V${pin}`);
+    return await res.text();
+}
+
+async function setValue(pin,val){
+    await fetch(`${BASE}/update?token=${TOKEN}&V${pin}=${val}`);
+}
+
+/* SENSOR */
+async function updateSensors(){
+    let t = parseFloat(await getValue(0));
+    let h = parseFloat(await getValue(1));
+    let s = parseFloat(await getValue(2));
+    let l = parseFloat(await getValue(3));
+
+    document.getElementById("temp").innerText = t+"°C";
+    document.getElementById("hum").innerText = h+"%";
+    document.getElementById("soil").innerText = s+"%";
+    document.getElementById("lux").innerText = l+"lx";
+
+    gTemp.set(t);
+    gHum.set(h);
+    gSoil.set(s);
+    gLux.set(Math.min(l/10000*100,100));
+
+    updateChart(t);
+}
+
+/* BUTTON */
+function updateBtn(id,val,icon){
+    let btn=document.getElementById(id);
+    btn.classList.remove("on","off","disabled");
+
+    if(val=="1"){
+        btn.classList.add("on");
+        btn.innerHTML=`ON <i class="fa-solid ${icon}"></i>`;
+    }else{
+        btn.classList.add("off");
+        btn.innerHTML=`OFF <i class="fa-solid ${icon}"></i>`;
+    }
+
+    btn.disabled=isAuto;
+    if(isAuto) btn.classList.add("disabled");
+}
+
+async function updateButtons(){
+    updateBtn("lightBtn", await getValue(4),"fa-sun");
+    updateBtn("fanBtn", await getValue(5),"fa-fan");
+    updateBtn("pumpBtn", await getValue(6),"fa-droplet");
+    updateBtn("sprayBtn", await getValue(8),"fa-spray-can");
+
+    let mode=await getValue(9);
+    let btn=document.getElementById("modeBtn");
+
+    if(mode=="1"){
+        isAuto=true;
+        btn.innerHTML='AUTO <i class="fa-solid fa-robot"></i>';
+        btn.className="control-btn mode-auto";
+    }else{
+        isAuto=false;
+        btn.innerHTML='NORMAL <i class="fa-solid fa-hand"></i>';
+        btn.className="control-btn mode-normal";
+    }
+}
+
+/* ACTION */
+async function toggle(pin){
+    if(isAuto) return;
+    let v=await getValue(pin);
+    await setValue(pin, v=="1"?0:1);
+}
+
+async function toggleMode(){
+    let v=await getValue(9);
+    await setValue(9, v=="1"?0:1);
+}
+
+/* CAMERA */
+async function updateCamera(){
+    let url=await getValue(12);
+    if(url.startsWith("http")){
+        document.getElementById("camera").src=url+"?t="+Date.now();
+    }
+}
+
+/* LOOP */
+setInterval(updateSensors,2000);
+setInterval(updateButtons,2000);
+setInterval(updateCamera,2000);
+
+</script>
+
+</body>
+</html>
