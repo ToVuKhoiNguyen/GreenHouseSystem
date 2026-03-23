@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-<title>Smart Greenhouse Pro</title>
+<title>Smart Greenhouse Dashboard</title>
 
 <style>
 body {
@@ -19,371 +19,211 @@ body {
     margin: 0;
     background: #0f172a;
     color: #e2e8f0;
+    font-size: 12px;
 }
 
-/* HEADER */
 .header {
-    padding: 20px;
-    font-size: 22px;
+    padding: 12px 15px;
+    font-size: 18px;
     font-weight: 600;
     background: #111827;
     border-bottom: 1px solid #1f2937;
 }
 
-/* GRID */
 .container {
     display: grid;
     grid-template-columns: 2fr 1fr;
-    gap: 20px;
-    padding: 20px;
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+    padding: 10px 15px;
+    height: calc(100vh - 42px);
 }
 
-/* CARD */
-.card {
-    background: #1e293b;
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-}
-
-/* SENSOR GRID */
-.row {
+/* SENSOR GAUGES */
+.sensors {
     display: grid;
-    grid-template-columns: repeat(4,1fr);
-    gap: 15px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
 }
 
 .sensor {
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 8px;
+    text-align: center;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.sensor h4 { font-weight: 500; color: #94a3b8; margin: 4px 0; font-size: 11px; }
+.value { font-size: 14px; font-weight: 600; margin-top: 4px; }
+.sensor canvas { width: 100px !important; height: 60px !important; }
+
+/* CAMERA */
+.camera-card {
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
     text-align: center;
 }
 
-.sensor h4 {
-    font-weight: 400;
-    color: #94a3b8;
+.camera-card h3 { font-size: 14px; margin-bottom: 6px; color: #94a3b8; }
+.camera-card img { width: 100%; border-radius: 10px; aspect-ratio: 16/9; object-fit: cover; }
+
+/* CHARTS */
+.chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
 }
 
-.value {
-    font-size: 22px;
-    font-weight: 600;
-    margin-top: 5px;
+.chart-card {
+    background: #1e293b;
+    border-radius: 10px;
+    padding: 8px;
+    height: 140px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
 }
 
-/* CONTROL */
+.chart-card h3 { margin: 0 0 6px 0; font-weight: 500; font-size: 12px; color: #94a3b8; }
+
+/* CONTROLS */
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
 .control-card {
     background: #1e293b;
-    padding: 15px;
-    border-radius: 14px;
+    border-radius: 10px;
+    padding: 6px 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.25);
 }
 
-.control-title {
-    margin-bottom: 10px;
-    color: #94a3b8;
-}
+.control-title { font-size: 11px; color: #94a3b8; font-weight: 500; margin-bottom: 4px; }
 
-/* BUTTON */
 .control-btn {
     width: 100%;
-    padding: 14px;
-    border-radius: 12px;
+    padding: 4px 0;
+    border-radius: 8px;
     border: none;
     font-weight: 600;
+    font-size: 11px;
     color: white;
     cursor: pointer;
-    transition: 0.25s;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
 }
 
-.control-btn:hover {
-    transform: translateY(-2px);
-}
-
-/* COLORS */
+.control-btn:hover:not(.disabled){ filter: brightness(1.15); }
 .mode-auto { background: linear-gradient(45deg,#22c55e,#16a34a); }
 .mode-normal { background: #64748b; }
-
 .light.on { background: linear-gradient(45deg,#f59e0b,#d97706); }
 .fan.on { background: linear-gradient(45deg,#38bdf8,#0284c7); }
 .pump.on { background: linear-gradient(45deg,#22c55e,#166534); }
 .spray.on { background: linear-gradient(45deg,#6366f1,#4338ca); }
-
 .off { background: #334155 !important; }
+.disabled { opacity: 0.4; cursor: not-allowed; }
+.fa-solid { font-size: 10px; }
 
-.disabled {
-    opacity: 0.4;
-}
-
-/* CAMERA */
-img {
-    width: 100%;
-    border-radius: 12px;
-    margin-top: 10px;
-}
-
-/* CHART */
-#tempChart {
-    width: 100% !important;
-    height: 250px !important;
+/* RESPONSIVE */
+@media (max-width:900px){
+    .container { grid-template-columns: 1fr; grid-template-rows: auto; }
+    .chart-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
-
 <body>
 
 <div class="header">🌱 Smart Greenhouse Dashboard</div>
 
 <div class="container">
+    <!-- TOP LEFT: Gauges -->
+    <div class="sensors">
+        <div class="sensor"><h4>Temp</h4><canvas id="gaugeTemp"></canvas><div class="value" id="temp">--°C</div></div>
+        <div class="sensor"><h4>Humidity</h4><canvas id="gaugeHum"></canvas><div class="value" id="hum">--%</div></div>
+        <div class="sensor"><h4>Soil</h4><canvas id="gaugeSoil"></canvas><div class="value" id="soil">--%</div></div>
+        <div class="sensor"><h4>Lux</h4><canvas id="gaugeLux"></canvas><div class="value" id="lux">--lx</div></div>
+    </div>
 
-<!-- LEFT -->
-<div>
+    <!-- TOP RIGHT: Camera -->
+    <div class="camera-card">
+        <h3>📷 Camera AI</h3>
+        <img id="camera" alt="Camera Image" src="">
+    </div>
 
-<div class="card">
-<div class="row">
+    <!-- BOTTOM LEFT: Charts -->
+    <div class="chart-grid">
+        <div class="chart-card"><h3>Temp</h3><canvas id="tempChart"></canvas></div>
+        <div class="chart-card"><h3>Humidity</h3><canvas id="humChart"></canvas></div>
+        <div class="chart-card"><h3>Soil</h3><canvas id="soilChart"></canvas></div>
+        <div class="chart-card"><h3>Lux</h3><canvas id="luxChart"></canvas></div>
+    </div>
 
-<div class="sensor">
-<h4>Temperature</h4>
-<canvas id="gaugeTemp"></canvas>
-<div class="value" id="temp">--</div>
-</div>
-
-<div class="sensor">
-<h4>Humidity</h4>
-<canvas id="gaugeHum"></canvas>
-<div class="value" id="hum">--</div>
-</div>
-
-<div class="sensor">
-<h4>Soil</h4>
-<canvas id="gaugeSoil"></canvas>
-<div class="value" id="soil">--</div>
-</div>
-
-<div class="sensor">
-<h4>Lux</h4>
-<canvas id="gaugeLux"></canvas>
-<div class="value" id="lux">--</div>
-</div>
-
-</div>
-</div>
-
-<br>
-
-<div class="card">
-<h3>📷 Camera AI</h3>
-<img id="camera">
-</div>
-
-<br>
-
-<div class="card">
-<h3>📊 Temperature History</h3>
-<canvas id="tempChart"></canvas>
-</div>
-
-</div>
-
-<!-- RIGHT -->
-<div>
-
-<div class="control-card">
-<div class="control-title">Mode</div>
-<button id="modeBtn" class="control-btn" onclick="toggleMode()">AUTO</button>
-</div>
-
-<br>
-
-<div class="control-card">
-<div class="control-title">Light</div>
-<button id="lightBtn" class="control-btn light" onclick="toggle(4)">--</button>
-</div>
-
-<br>
-
-<div class="control-card">
-<div class="control-title">Fan</div>
-<button id="fanBtn" class="control-btn fan" onclick="toggle(5)">--</button>
-</div>
-
-<br>
-
-<div class="control-card">
-<div class="control-title">Pump</div>
-<button id="pumpBtn" class="control-btn pump" onclick="toggle(6)">--</button>
-</div>
-
-<br>
-
-<div class="control-card">
-<div class="control-title">Spray</div>
-<button id="sprayBtn" class="control-btn spray" onclick="toggle(8)">--</button>
-</div>
-
-</div>
-
+    <!-- BOTTOM RIGHT: Controls -->
+    <div class="controls">
+        <div class="control-card"><div class="control-title">Mode</div><button id="modeBtn" class="control-btn mode-normal" onclick="toggleMode()">NORMAL <i class="fa-solid fa-hand"></i></button></div>
+        <div class="control-card"><div class="control-title">Light</div><button id="lightBtn" class="control-btn light off" onclick="toggle(4)">OFF <i class="fa-solid fa-sun"></i></button></div>
+        <div class="control-card"><div class="control-title">Fan</div><button id="fanBtn" class="control-btn fan off" onclick="toggle(5)">OFF <i class="fa-solid fa-fan"></i></button></div>
+        <div class="control-card"><div class="control-title">Pump</div><button id="pumpBtn" class="control-btn pump off" onclick="toggle(6)">OFF <i class="fa-solid fa-droplet"></i></button></div>
+        <div class="control-card"><div class="control-title">Spray</div><button id="sprayBtn" class="control-btn spray off" onclick="toggle(8)">OFF <i class="fa-solid fa-spray-can"></i></button></div>
+    </div>
 </div>
 
 <script>
-const TOKEN = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4";
-const BASE = `https://blynk.cloud/external/api`;
+// BLYNK
+const TOKEN="rtfmZLrt9StzWVDpudj46RXQiNvQKct4";
+const BASE=`https://blynk.cloud/external/api`;
+let isAuto=false;
 
-let isAuto = false;
+// GAUGES
+function createGauge(id){return new Gauge(document.getElementById(id)).setOptions({angle:-0.2,lineWidth:0.15,pointer:{length:0.7,strokeWidth:0.02},staticZones:[{strokeStyle:"#22c55e",min:0,max:40},{strokeStyle:"#facc15",min:40,max:70},{strokeStyle:"#ef4444",min:70,max:100}],limitMax:false,limitMin:false,highDpiSupport:true});}
+const gTemp=createGauge("gaugeTemp"), gHum=createGauge("gaugeHum"), gSoil=createGauge("gaugeSoil"), gLux=createGauge("gaugeLux");
 
-/* GAUGE */
-function createGauge(id) {
-    let gauge = new Gauge(document.getElementById(id)).setOptions({
-        angle: -0.2,
-        lineWidth: 0.15,
-        pointer: { length: 0.7, strokeWidth: 0.02 },
-        staticZones: [
-            {strokeStyle: "#22c55e", min: 0, max: 40},
-            {strokeStyle: "#facc15", min: 40, max: 70},
-            {strokeStyle: "#ef4444", min: 70, max: 100}
-        ]
-    });
-    gauge.maxValue = 100;
-    gauge.setMinValue(0);
-    return gauge;
-}
+// CHART DATA
+let tempData=[], humData=[], soilData=[], luxData=[], labels=[];
+function chartOptions(){return {plugins:{legend:{labels:{color:'#a5b4fc'}}},scales:{x:{ticks:{color:'#94a3b8'},grid:{color:'#374151'}},y:{ticks:{color:'#94a3b8'},grid:{color:'#374151'}}},responsive:true,maintainAspectRatio:false};}
 
-const gTemp = createGauge("gaugeTemp");
-const gHum = createGauge("gaugeHum");
-const gSoil = createGauge("gaugeSoil");
-const gLux = createGauge("gaugeLux");
+const tempChart=new Chart(document.getElementById("tempChart"),{type:'line',data:{labels:labels,datasets:[{label:'Temp',data:tempData,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.25)',tension:0.4,fill:true,pointRadius:1} ]},options:chartOptions()});
+const humChart=new Chart(document.getElementById("humChart"),{type:'line',data:{labels:labels,datasets:[{label:'Hum',data:humData,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.25)',tension:0.4,fill:true,pointRadius:1}]},options:chartOptions()});
+const soilChart=new Chart(document.getElementById("soilChart"),{type:'line',data:{labels:labels,datasets:[{label:'Soil',data:soilData,borderColor:'#f97316',backgroundColor:'rgba(249,115,22,0.25)',tension:0.4,fill:true,pointRadius:1}]},options:chartOptions()});
+const luxChart=new Chart(document.getElementById("luxChart"),{type:'line',data:{labels:labels,datasets:[{label:'Lux',data:luxData,borderColor:'#facc15',backgroundColor:'rgba(250,204,21,0.25)',tension:0.4,fill:true,pointRadius:1}]},options:chartOptions()});
 
-/* CHART */
-let tempData = [];
-let labels = [];
+function updateChartAll(t,h,s,l){let time=new Date().toLocaleTimeString();labels.push(time); tempData.push(t); humData.push(h); soilData.push(s); luxData.push(l); if(labels.length>20){labels.shift(); tempData.shift(); humData.shift(); soilData.shift(); luxData.shift();} tempChart.update(); humChart.update(); soilChart.update(); luxChart.update();}
 
-const tempChart = new Chart(document.getElementById("tempChart"), {
-    type: 'line',
-    data: {
-        labels: labels,
-        datasets: [{
-            label: 'Temperature (°C)',
-            data: tempData,
-            borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.2)',
-            tension: 0.4,
-            fill: true,
-            pointRadius: 2
-        }]
-    },
-    options: {
-        plugins: {
-            legend: { labels: { color: '#e2e8f0' } }
-        },
-        scales: {
-            x: { ticks: { color: '#94a3b8' } },
-            y: { ticks: { color: '#94a3b8' } }
-        }
-    }
-});
+// API
+async function getValue(pin){let res=await fetch(`${BASE}/get?token=${TOKEN}&V${pin}`); return await res.text();}
+async function setValue(pin,val){await fetch(`${BASE}/update?token=${TOKEN}&V${pin}=${val}`);}
 
-function updateChart(temp){
-    let time = new Date().toLocaleTimeString();
+// SENSORS
+async function updateSensors(){let t=parseFloat(await getValue(0)), h=parseFloat(await getValue(1)), s=parseFloat(await getValue(2)), l=parseFloat(await getValue(3));
+document.getElementById("temp").innerText=t.toFixed(1)+"°C"; document.getElementById("hum").innerText=h.toFixed(1)+"%"; document.getElementById("soil").innerText=s.toFixed(1)+"%"; document.getElementById("lux").innerText=l.toFixed(0)+"lx";
+gTemp.set(t); gHum.set(h); gSoil.set(s); gLux.set(Math.min(l/10000*100,100));
+updateChartAll(t,h,s,l);}
 
-    labels.push(time);
-    tempData.push(temp);
+// BUTTONS
+function updateBtn(id,val,icon){const btn=document.getElementById(id); btn.classList.remove("on","off","disabled"); if(val==="1"){btn.classList.add("on"); btn.innerHTML=`ON <i class="fa-solid ${icon}"></i>`;} else {btn.classList.add("off"); btn.innerHTML=`OFF <i class="fa-solid ${icon}"></i>`;} btn.disabled=isAuto; if(isAuto) btn.classList.add("disabled");}
 
-    if(labels.length > 15){
-        labels.shift();
-        tempData.shift();
-    }
+async function updateButtons(){updateBtn("lightBtn",await getValue(4),"fa-sun"); updateBtn("fanBtn",await getValue(5),"fa-fan"); updateBtn("pumpBtn",await getValue(6),"fa-droplet"); updateBtn("sprayBtn",await getValue(8),"fa-spray-can");
+let mode=await getValue(9); const modeBtn=document.getElementById("modeBtn"); if(mode==="1"){isAuto=true; modeBtn.innerHTML='AUTO <i class="fa-solid fa-robot"></i>'; modeBtn.className="control-btn mode-auto";} else{isAuto=false; modeBtn.innerHTML='NORMAL <i class="fa-solid fa-hand"></i>'; modeBtn.className="control-btn mode-normal";}}
 
-    tempChart.update();
-}
+// ACTIONS
+async function toggle(pin){if(isAuto)return; let v=await getValue(pin); await setValue(pin,v==="1"?0:1);}
+async function toggleMode(){let v=await getValue(9); await setValue(9,v==="1"?0:1);}
 
-/* API */
-async function getValue(pin) {
-    let res = await fetch(`${BASE}/get?token=${TOKEN}&V${pin}`);
-    return await res.text();
-}
+// CAMERA
+async function updateCamera(){let url=await getValue(12); if(url.startsWith("http")) document.getElementById("camera").src=url+"?t="+Date.now();}
 
-async function setValue(pin,val){
-    await fetch(`${BASE}/update?token=${TOKEN}&V${pin}=${val}`);
-}
-
-/* SENSOR */
-async function updateSensors(){
-    let t = parseFloat(await getValue(0));
-    let h = parseFloat(await getValue(1));
-    let s = parseFloat(await getValue(2));
-    let l = parseFloat(await getValue(3));
-
-    document.getElementById("temp").innerText = t+"°C";
-    document.getElementById("hum").innerText = h+"%";
-    document.getElementById("soil").innerText = s+"%";
-    document.getElementById("lux").innerText = l+"lx";
-
-    gTemp.set(t);
-    gHum.set(h);
-    gSoil.set(s);
-    gLux.set(Math.min(l/10000*100,100));
-
-    updateChart(t);
-}
-
-/* BUTTON */
-function updateBtn(id,val,icon){
-    let btn=document.getElementById(id);
-    btn.classList.remove("on","off","disabled");
-
-    if(val=="1"){
-        btn.classList.add("on");
-        btn.innerHTML=`ON <i class="fa-solid ${icon}"></i>`;
-    }else{
-        btn.classList.add("off");
-        btn.innerHTML=`OFF <i class="fa-solid ${icon}"></i>`;
-    }
-
-    btn.disabled=isAuto;
-    if(isAuto) btn.classList.add("disabled");
-}
-
-async function updateButtons(){
-    updateBtn("lightBtn", await getValue(4),"fa-sun");
-    updateBtn("fanBtn", await getValue(5),"fa-fan");
-    updateBtn("pumpBtn", await getValue(6),"fa-droplet");
-    updateBtn("sprayBtn", await getValue(8),"fa-spray-can");
-
-    let mode=await getValue(9);
-    let btn=document.getElementById("modeBtn");
-
-    if(mode=="1"){
-        isAuto=true;
-        btn.innerHTML='AUTO <i class="fa-solid fa-robot"></i>';
-        btn.className="control-btn mode-auto";
-    }else{
-        isAuto=false;
-        btn.innerHTML='NORMAL <i class="fa-solid fa-hand"></i>';
-        btn.className="control-btn mode-normal";
-    }
-}
-
-/* ACTION */
-async function toggle(pin){
-    if(isAuto) return;
-    let v=await getValue(pin);
-    await setValue(pin, v=="1"?0:1);
-}
-
-async function toggleMode(){
-    let v=await getValue(9);
-    await setValue(9, v=="1"?0:1);
-}
-
-/* CAMERA */
-async function updateCamera(){
-    let url=await getValue(12);
-    if(url.startsWith("http")){
-        document.getElementById("camera").src=url+"?t="+Date.now();
-    }
-}
-
-/* LOOP */
+// LOOP
 setInterval(updateSensors,2000);
 setInterval(updateButtons,2000);
 setInterval(updateCamera,2000);
-
 </script>
 
 </body>

@@ -51,7 +51,6 @@ if not os.path.exists("LogData"):
 MAX_WATER = 10.0  # giây
 MAX_SPRAY = 10.0  # giây
 irrigation_time = MAX_WATER  # thời gian tưới nước
-
 SOIL_DRY = 10       # < 20% → khô
 TEMP_LOW = 30       # < 30°C → tắt quạt
 TEMP_HIGH = 34      # > 34°C → bật quạt
@@ -69,7 +68,7 @@ client = InferenceHTTPClient(
     api_key=ROBOFLOW_API_KEY
 )
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 if not cap.isOpened():
     print("Camera not found")
     exit()
@@ -85,16 +84,13 @@ lux = "--"
 
 MODEL_FILE = "ai_model.pkl"
 
-
 def train_model():
     if not os.path.exists("ai_dataset.csv"):
         return None
 
     df = pd.read_csv("ai_dataset.csv")
-
     X = df[["temp", "hum", "soil", "lux", "pest", "wilt"]]
     y = df[["irrigation", "spray"]]
-
     model = RandomForestRegressor(n_estimators=50)
     model.fit(X, y)
 
@@ -103,10 +99,8 @@ def train_model():
 
     return model
 
-
 def auto_retrain():
     global counter, model
-
     counter += 1
 
     if counter >= 10:  # mỗi 10 lần chạy sẽ training
@@ -114,13 +108,11 @@ def auto_retrain():
         model = train_model()
         counter = 0
 
-
 def load_model():
     if os.path.exists(MODEL_FILE):
         return joblib.load(MODEL_FILE)
     else:
         return train_model()
-
 
 model = load_model()
 
@@ -163,6 +155,7 @@ def update_camera():
 
 
 # ================= INFERENCE =================
+# Bounding Box
 COLOR_MAP = {
     "leaf": (0, 255, 0),  # xanh lá
     "pest": (0, 0, 255),  # đỏ
@@ -212,7 +205,18 @@ def run_inference():
         return
 
     # ================= BLYNK ON =================
-    blynk_write("V7", 1)
+    '''
+    V0: Nhiet do
+    V1: Do am
+    V2: Do am dat
+    V3: Anh sang (lux)
+    V4: Đen sinh truong
+    V5: Quat
+    V6: Bom
+    V7: Led trang
+    V8: Phun thuoc
+    '''
+    blynk_write("V7", 1)  # Bat den led trang de chup anh
     blynk_write("V4", 0)  # Tắt đèn Tăng trưởng
     last_light = -1
     time.sleep(3)
@@ -220,8 +224,7 @@ def run_inference():
     path = "capture.jpg"
     cv2.imwrite(path, frame)
 
-    results = client.infer(path, model_id=MODEL_ID)
-
+    results = client.infer(path, model_id=MODEL_ID) # Gui anh len Roboflow de nhan ket qua du doan(class, bounding, confidence)
     img = frame.copy()
 
     # ================= THỐNG KÊ =================
@@ -326,7 +329,6 @@ def run_inference():
 
     lbl_image.imgtk = img
     lbl_image.configure(image=img)
-
     lbl_result.config(text=text_out)
 
     # //////////////////////////////////////////////////////////
@@ -423,7 +425,6 @@ def get_blynk_value(pin):
     except:
         return "--"
 
-
 def blynk_write(pin, value):
     try:
         url = f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&{pin}={value}"
@@ -511,7 +512,6 @@ def check_trigger():
                 is_running = False
 
             threading.Thread(target=task).start()
-
             # reset trigger
             requests.get(f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&v10=0")
 
