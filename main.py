@@ -1,4 +1,3 @@
-# FULL OK DONE
 from datetime import datetime
 import cv2
 import threading
@@ -13,7 +12,7 @@ import pandas as pd
 import joblib
 import subprocess
 import re
-from flask import Flask, send_file
+from flask import Flask, send_file, Response
 
 Image_path = "capture.jpg"
 
@@ -47,6 +46,24 @@ def run_cloudflare():
 
 if not os.path.exists("LogData"):
     os.makedirs("LogData")
+
+def gen_frames():
+    global cap
+    while True:
+        success, frame = cap.read()
+        if not success:
+            continue
+        else:
+            # Encode frame as JPEG
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame_bytes = buffer.tobytes()
+            # Yield in MJPEG format
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 MAX_WATER = 10.0  # giây
 MAX_SPRAY = 10.0  # giây
@@ -199,8 +216,6 @@ def save_dataset(temp, hum, soil, lux, pest, wilt, irrigation, spray):
 
 def run_inference():
     global frame, irrigation_time, Image_path, last_light
-
-
     if frame is None:
         return
 
@@ -228,13 +243,8 @@ def run_inference():
     img = frame.copy()
 
     # ================= THỐNG KÊ =================
-    leaf_count = 0
-    pest_count = 0
-    wilt_count = 0
-
-    leaf_area = 0
-    pest_area = 0
-    wilt_area = 0
+    leaf_count = pest_count = wilt_count = 0
+    leaf_area = pest_area = wilt_area = 0
 
     # ================= LOOP =================
     for pred in results['predictions']:

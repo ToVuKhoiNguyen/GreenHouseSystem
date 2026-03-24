@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/gaugeJS/dist/gauge.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<title>Smart Greenhouse</title>
+<style>
+:root {
+  --bg:     #0a0f1a;
+  --panel:  #111827;
+  --card:   #161f30;
+  --border: #1f3048;
+  --accent: #10b981;
+  --blue:   #38bdf8;
+  --warn:   #f59e0b;
+  --danger: #ef4444;
+  --purple: #a78bfa;
+  --text:   #d1dde8;
+  --muted:  #4a6375;
+  --mono:   'IBM Plex Mono', monospace;
+  --sans:   'DM Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ═══ HEADER ════════════════════════════════════════════ */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px; height: 40px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.hdr-left { display: flex; align-items: center; gap: 8px; }
+.hdr-left h1 { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--accent); letter-spacing: 1.5px; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 7px var(--accent); animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+.hdr-clock { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* ═══ ROOT GRID — 3 columns ═════════════════════════════
+   COL-A: gauges (fixed 160px)
+   COL-B: center — camera top + charts bottom (flex)
+   COL-C: controls (fixed 190px, scrollable)
+*/
+.root {
+  display: grid;
+  grid-template-columns: 160px 1fr 190px;
+  gap: 7px;
+  padding: 7px;
+  height: calc(100vh - 40px);
+}
+
+/* ═══ COL-A: GAUGES ═════════════════════════════════════ */
+.col-gauges {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow: hidden;
+}
+.sensor {
+  flex: 1;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 6px 4px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.sensor h4 {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 1px;
+}
+.sensor canvas { width: 90px !important; height: 50px !important; }
+.sensor .val {
+  font-family: var(--mono); font-size: 14px; font-weight: 700;
+  color: var(--accent); margin-top: 3px;
+}
+
+/* ═══ COL-B: CENTER ════════════════════════════════════ */
+.col-center {
+  display: grid;
+  grid-template-rows: 55% 45%;   /* camera bigger, charts smaller */
+  gap: 7px;
+  overflow: hidden;
+}
+
+/* Camera panel */
+.cam-panel {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 7px; display: flex; flex-direction: column; gap: 5px; overflow: hidden;
+}
+.cam-panel-title {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--muted); flex-shrink: 0;
+}
+/* Two camera views side by side */
+.cam-row {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 6px; flex: 1; overflow: hidden;
+}
+.cam-box { position: relative; border-radius: 7px; overflow: hidden; background: #000; }
+.cam-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-tag {
+  position: absolute; top: 4px; left: 4px;
+  font-family: var(--mono); font-size: 7px; letter-spacing: 1px;
+  background: rgba(0,0,0,.72); padding: 2px 5px; border-radius: 3px;
+  color: var(--accent); border: 1px solid var(--accent);
+}
+.cam-tag.ai { color: var(--purple); border-color: var(--purple); }
+.cam-placeholder {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; color: var(--muted); font-family: var(--mono); font-size: 8px;
+}
+
+/* Charts 2×2 */
+.chart-grid {
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+  gap: 7px; overflow: hidden;
+}
+.chart-box {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 6px 8px; display: flex; flex-direction: column; overflow: hidden;
+}
+.chart-box h3 {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 3px; flex-shrink: 0;
+}
+.chart-box canvas { flex: 1; min-height: 0; }
+
+/* ═══ COL-C: CONTROLS (scrollable) ════════════════════ */
+.col-ctrl {
+  display: flex; flex-direction: column; gap: 6px;
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+.col-ctrl::-webkit-scrollbar       { width: 4px; }
+.col-ctrl::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.ctrl-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+  padding: 6px 8px; flex-shrink: 0;
+}
+.ctrl-lbl {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+}
+
+/* Device buttons */
+.dbtn {
+  width: 100%; padding: 5px 0;
+  border-radius: 7px; border: 1px solid var(--border);
+  background: var(--panel);
+  font-family: var(--mono); font-weight: 700; font-size: 9px; letter-spacing: 1px;
+  color: var(--muted); cursor: pointer;
+  display: flex; justify-content: center; align-items: center; gap: 4px;
+  transition: filter .15s, transform .1s;
+}
+.dbtn:hover:not(.dis):not(:disabled) { filter: brightness(1.2); transform: scale(1.02); }
+.dbtn:disabled, .dbtn.dis { opacity: .3; cursor: not-allowed; transform: none !important; }
+
+.on-mode   { background: linear-gradient(90deg,#059669,#10b981); border-color:#10b981; color:#fff; }
+.on-light  { background: linear-gradient(90deg,#d97706,#f59e0b); border-color:#f59e0b; color:#fff; }
+.on-fan    { background: linear-gradient(90deg,#0284c7,#38bdf8); border-color:#38bdf8; color:#fff; }
+.on-pump   { background: linear-gradient(90deg,#065f46,#10b981); border-color:#10b981; color:#fff; }
+.on-spray  { background: linear-gradient(90deg,#5b21b6,#a78bfa); border-color:#a78bfa; color:#fff; }
+
+/* Capture button */
+.cap-btn {
+  width: 100%; padding: 7px 0;
+  border-radius: 7px; border: none;
+  font-family: var(--mono); font-weight: 700; font-size: 9px; letter-spacing: 1px;
+  color: #000; background: linear-gradient(90deg,#10b981,#38bdf8);
+  cursor: pointer;
+  display: flex; justify-content: center; align-items: center; gap: 5px;
+  transition: filter .15s, transform .1s;
+  box-shadow: 0 0 14px rgba(16,185,129,.3);
+}
+.cap-btn:hover:not(:disabled) { filter: brightness(1.15); transform: scale(1.02); }
+.cap-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.cap-btn.busy { background: linear-gradient(90deg,#d97706,#f59e0b); animation: pblink 1s infinite; }
+@keyframes pblink { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+/* AI result rows */
+.ai-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 0; border-bottom: 1px solid var(--border);
+}
+.ai-row:last-child { border-bottom: none; }
+.ai-lbl { font-family: var(--mono); font-size: 8px; color: var(--muted); text-transform: uppercase; }
+.ai-val { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--text); }
+.ok     { color: var(--accent); }
+.warn   { color: var(--warn); }
+.danger { color: var(--danger); }
+
+.fa-solid { font-size: 9px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="hdr-left">
+    <div class="live-dot"></div>
+    <h1>🌱 SMART GREENHOUSE</h1>
+  </div>
+  <div class="hdr-clock" id="clock">--:--:--</div>
+</div>
+
+<div class="root">
+
+  <!-- ═══ COL-A: GAUGES ══════════════════════════════════ -->
+  <div class="col-gauges">
+    <div class="sensor"><h4>Temp</h4><canvas id="gaugeTemp"></canvas><div class="val" id="temp">--°C</div></div>
+    <div class="sensor"><h4>Humidity</h4><canvas id="gaugeHum"></canvas><div class="val" id="hum">--%</div></div>
+    <div class="sensor"><h4>Soil</h4><canvas id="gaugeSoil"></canvas><div class="val" id="soil">--%</div></div>
+    <div class="sensor"><h4>Lux</h4><canvas id="gaugeLux"></canvas><div class="val" id="lux">--lx</div></div>
+  </div>
+
+  <!-- ═══ COL-B: CENTER ══════════════════════════════════ -->
+  <div class="col-center">
+
+    <!-- Camera: LIVE | AI Result -->
+    <div class="cam-panel">
+      <div class="cam-panel-title">📷 Camera</div>
+      <div class="cam-row">
+        <div class="cam-box">
+          <img id="liveStream" src="http://localhost:5000/video_feed" alt="Live">
+          <span class="cam-tag">● LIVE</span>
+        </div>
+        <div class="cam-box">
+          <div class="cam-placeholder" id="camPlaceholder">
+            <i class="fa-solid fa-robot" style="font-size:20px"></i>
+            <span>Chưa có ảnh AI</span>
+          </div>
+          <img id="resultImg" src="" alt="AI" style="display:none;width:100%;height:100%;object-fit:cover;">
+          <span class="cam-tag ai">✦ AI RESULT</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts 2×2 -->
+    <div class="chart-grid">
+      <div class="chart-box"><h3>Temp</h3><canvas id="tempChart"></canvas></div>
+      <div class="chart-box"><h3>Humidity</h3><canvas id="humChart"></canvas></div>
+      <div class="chart-box"><h3>Soil</h3><canvas id="soilChart"></canvas></div>
+      <div class="chart-box"><h3>Lux</h3><canvas id="luxChart"></canvas></div>
+    </div>
+
+  </div>
+
+  <!-- ═══ COL-C: CONTROLS (scrollable) ══════════════════ -->
+  <div class="col-ctrl">
+
+    <div class="ctrl-card">
+      <div class="ctrl-lbl">Mode</div>
+      <button id="modeBtn" class="dbtn" onclick="toggleMode()">NORMAL <i class="fa-solid fa-hand"></i></button>
+    </div>
+
+    <div class="ctrl-card">
+      <div class="ctrl-lbl">Light</div>
+      <button id="lightBtn" class="dbtn" onclick="toggle(4)">OFF <i class="fa-solid fa-sun"></i></button>
+    </div>
+
+    <div class="ctrl-card">
+      <div class="ctrl-lbl">Fan</div>
+      <button id="fanBtn" class="dbtn" onclick="toggle(5)">OFF <i class="fa-solid fa-fan"></i></button>
+    </div>
+
+    <div class="ctrl-card">
+      <div class="ctrl-lbl">Pump</div>
+      <button id="pumpBtn" class="dbtn" onclick="toggle(6)">OFF <i class="fa-solid fa-droplet"></i></button>
+    </div>
+
+    <div class="ctrl-card">
+      <div class="ctrl-lbl">Spray</div>
+      <button id="sprayBtn" class="dbtn" onclick="toggle(8)">OFF <i class="fa-solid fa-spray-can"></i></button>
+    </div>
+
+    <!-- CAPTURE -->
+    <div class="ctrl-card">
+      <div class="ctrl-lbl">AI Analysis</div>
+      <button id="captureBtn" class="cap-btn" onclick="capture()">
+        <i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH
+      </button>
+    </div>
+
+    <!-- AI RESULTS -->
+    <div class="ctrl-card">
+      <div class="ctrl-lbl">Kết quả AI</div>
+      <div class="ai-row"><span class="ai-lbl">Status</span><span class="ai-val" id="r-status">--</span></div>
+      <div class="ai-row"><span class="ai-lbl">Pest</span>  <span class="ai-val" id="r-pest">--</span></div>
+      <div class="ai-row"><span class="ai-lbl">Wilt</span>  <span class="ai-val" id="r-wilt">--</span></div>
+      <div class="ai-row"><span class="ai-lbl">Stress</span><span class="ai-val" id="r-stress">--</span></div>
+      <div class="ai-row"><span class="ai-lbl">Tưới</span>  <span class="ai-val" id="r-irr">--</span></div>
+      <div class="ai-row"><span class="ai-lbl">Phun</span>  <span class="ai-val" id="r-spray">--</span></div>
+    </div>
+
+    <div style="height:4px;flex-shrink:0"></div>
+  </div>
+
+</div><!-- /root -->
+
+<script>
+const TOKEN = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4";
+const BASE  = "https://blynk.cloud/external/api";
+const FLASK = "http://localhost:5000";
+let isAuto=false, isInferring=false;
+
+/* clock */
+function tick(){ document.getElementById("clock").textContent=new Date().toLocaleTimeString("vi-VN"); }
+setInterval(tick,1000); tick();
+
+/* gauges */
+function mkG(id){
+  const g=new Gauge(document.getElementById(id));
+  g.setOptions({angle:-0.2,lineWidth:0.15,pointer:{length:0.7,strokeWidth:0.02},
+    staticZones:[{strokeStyle:"#10b981",min:0,max:40},{strokeStyle:"#f59e0b",min:40,max:70},{strokeStyle:"#ef4444",min:70,max:100}],
+    limitMax:false,limitMin:false,highDpiSupport:true});
+  return g;
+}
+const gT=mkG("gaugeTemp"),gH=mkG("gaugeHum"),gS=mkG("gaugeSoil"),gL=mkG("gaugeLux");
+
+/* charts */
+let lb=[],tD=[],hD=[],sD=[],lD=[];
+function mkC(id,data,color){
+  return new Chart(document.getElementById(id),{
+    type:"line",
+    data:{labels:lb,datasets:[{data,borderColor:color,backgroundColor:color+"22",tension:0.4,fill:true,pointRadius:0,borderWidth:1.5}]},
+    options:{plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:"#4a6375",font:{size:7},maxTicksLimit:5},grid:{color:"#0d1624"}},
+              y:{ticks:{color:"#4a6375",font:{size:7},maxTicksLimit:4},grid:{color:"#0d1624"}}},
+      responsive:true,maintainAspectRatio:false,animation:{duration:200}}
+  });
+}
+const cT=mkC("tempChart",tD,"#10b981"),cH=mkC("humChart",hD,"#38bdf8");
+const cS=mkC("soilChart",sD,"#f59e0b"),cL=mkC("luxChart",lD,"#a78bfa");
+function pushC(t,h,s,l){
+  lb.push(new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
+  tD.push(t);hD.push(h);sD.push(s);lD.push(l);
+  if(lb.length>20)[lb,tD,hD,sD,lD].forEach(a=>a.shift());
+  [cT,cH,cS,cL].forEach(c=>c.update());
+}
+
+/* blynk */
+const bg=async p=>(await fetch(`${BASE}/get?token=${TOKEN}&V${p}`)).text();
+const bs=async(p,v)=>fetch(`${BASE}/update?token=${TOKEN}&V${p}=${v}`);
+
+/* sensors */
+async function updSensors(){
+  const[t,h,s,l]=await Promise.all([bg(0),bg(1),bg(2),bg(3)]);
+  const tf=parseFloat(t),hf=parseFloat(h),sf=parseFloat(s),lf=parseFloat(l);
+  document.getElementById("temp").textContent =isNaN(tf)?"--°C" :tf.toFixed(1)+"°C";
+  document.getElementById("hum").textContent  =isNaN(hf)?"--%"  :hf.toFixed(1)+"%";
+  document.getElementById("soil").textContent =isNaN(sf)?"--%"  :sf.toFixed(1)+"%";
+  document.getElementById("lux").textContent  =isNaN(lf)?"--lx" :lf.toFixed(0)+"lx";
+  if(!isNaN(tf)){gT.set(tf);gH.set(hf);gS.set(sf);gL.set(Math.min(lf/10000*100,100));pushC(tf,hf,sf,lf);}
+}
+
+/* buttons */
+const CFG={
+  lightBtn:{on:"on-light", ion:"fa-sun",      ioff:"fa-sun"},
+  fanBtn:  {on:"on-fan",   ion:"fa-fan",       ioff:"fa-fan"},
+  pumpBtn: {on:"on-pump",  ion:"fa-droplet",   ioff:"fa-droplet"},
+  sprayBtn:{on:"on-spray", ion:"fa-spray-can", ioff:"fa-spray-can"},
+};
+function applyBtn(id,val){
+  const b=document.getElementById(id),c=CFG[id],on=val==="1";
+  b.className="dbtn"+(on?" "+c.on:"");
+  b.innerHTML=`${on?"ON":"OFF"} <i class="fa-solid ${on?c.ion:c.ioff}"></i>`;
+  b.disabled=isAuto; if(isAuto)b.classList.add("dis");
+}
+async function updBtns(){
+  const[l,f,p,sp,m]=await Promise.all([bg(4),bg(5),bg(6),bg(8),bg(9)]);
+  isAuto=m==="1";
+  const mb=document.getElementById("modeBtn");
+  mb.className="dbtn"+(isAuto?" on-mode":"");
+  mb.innerHTML=isAuto?'AUTO <i class="fa-solid fa-robot"></i>':'NORMAL <i class="fa-solid fa-hand"></i>';
+  applyBtn("lightBtn",l);applyBtn("fanBtn",f);applyBtn("pumpBtn",p);applyBtn("sprayBtn",sp);
+}
+
+/* toggle */
+async function toggle(pin){if(isAuto)return;await bs(pin,(await bg(pin))==="1"?0:1);}
+async function toggleMode(){await bs(9,(await bg(9))==="1"?0:1);}
+
+/* capture */
+async function capture(){
+  if(isInferring)return;
+  isInferring=true;
+  const btn=document.getElementById("captureBtn");
+  btn.disabled=true;btn.classList.add("busy");
+  btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> ĐANG PHÂN TÍCH...';
+  try{
+    const r=await fetch(`${FLASK}/capture`,{method:"POST"});
+    const d=await r.json();
+    if(d.status==="busy"){alert("Đang phân tích, vui lòng chờ!");resetCap();return;}
+    pollRes();
+  }catch{
+    alert("⚠️ Không kết nối Flask (localhost:5000). Hãy chạy main.py trước!");
+    resetCap();
+  }
+}
+function pollRes(){
+  const iv=setInterval(async()=>{
+    try{
+      const s=await(await fetch(`${FLASK}/status`)).json();
+      if(!s.inferring&&s.has_result){clearInterval(iv);await showRes();resetCap();}
+    }catch{clearInterval(iv);resetCap();}
+  },1500);
+}
+async function showRes(){
+  const d=await(await fetch(`${FLASK}/result`)).json();
+  const img=document.getElementById("resultImg");
+  document.getElementById("camPlaceholder").style.display="none";
+  img.src=`${FLASK}/latest_result?t=${Date.now()}`;
+  img.style.display="block";
+  const stress=d.stress_index??0;
+  const sc=stress>0.35?"danger":stress>0.05?"warn":"ok";
+  const st=d.status||"";
+  const stc=st.includes("nặng")?"danger":(st.includes("nhẹ")||st.includes("trung"))?"warn":"ok";
+  document.getElementById("r-status").textContent=st||"--";  document.getElementById("r-status").className=`ai-val ${stc}`;
+  document.getElementById("r-pest").textContent  =d.pest_count??"--";
+  document.getElementById("r-wilt").textContent  =d.wilt_count??"--";
+  document.getElementById("r-stress").textContent=stress.toFixed(3); document.getElementById("r-stress").className=`ai-val ${sc}`;
+  document.getElementById("r-irr").textContent   =(d.irrigation??"--")+"s";
+  document.getElementById("r-spray").textContent =(d.spray??"--")+"s";
+}
+function resetCap(){
+  isInferring=false;
+  const btn=document.getElementById("captureBtn");
+  btn.disabled=false;btn.classList.remove("busy");
+  btn.innerHTML='<i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH';
+}
+
+/* loop */
+setInterval(updSensors,2000); setInterval(updBtns,2000);
+updSensors(); updBtns();
+</script>
+</body>
+</html>

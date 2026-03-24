@@ -154,8 +154,7 @@ body {
 
     <!-- TOP RIGHT: Camera -->
     <div class="camera-card">
-        <h3>📷 Camera AI</h3>
-        <img id="camera" alt="Camera Image" src="">
+        <img id="camera" src="http://localhost:5000/video_feed" style="width:100%; border-radius:14px;">
     </div>
 
     <!-- BOTTOM LEFT: Charts -->
@@ -168,11 +167,24 @@ body {
 
     <!-- BOTTOM RIGHT: Controls -->
     <div class="controls">
-        <div class="control-card"><div class="control-title">Mode</div><button id="modeBtn" class="control-btn mode-normal" onclick="toggleMode()">NORMAL <i class="fa-solid fa-hand"></i></button></div>
-        <div class="control-card"><div class="control-title">Light</div><button id="lightBtn" class="control-btn light off" onclick="toggle(4)">OFF <i class="fa-solid fa-sun"></i></button></div>
-        <div class="control-card"><div class="control-title">Fan</div><button id="fanBtn" class="control-btn fan off" onclick="toggle(5)">OFF <i class="fa-solid fa-fan"></i></button></div>
-        <div class="control-card"><div class="control-title">Pump</div><button id="pumpBtn" class="control-btn pump off" onclick="toggle(6)">OFF <i class="fa-solid fa-droplet"></i></button></div>
-        <div class="control-card"><div class="control-title">Spray</div><button id="sprayBtn" class="control-btn spray off" onclick="toggle(8)">OFF <i class="fa-solid fa-spray-can"></i></button></div>
+        <div class="control-card"><div class="control-title">Mode</div>
+            <button id="modeBtn" class="control-btn mode-normal" onclick="toggleMode()">MANUAL <i class="fa-solid fa-hand"></i></button>
+        </div>
+        <div class="control-card"><div class="control-title">Light</div>
+            <button id="lightBtn" class="control-btn light off" onclick="toggle(4)">OFF <i class="fa-solid fa-sun"></i></button>
+        </div>
+        <div class="control-card"><div class="control-title">Fan</div>
+            <button id="fanBtn" class="control-btn fan off" onclick="toggle(5)">OFF <i class="fa-solid fa-fan"></i></button>
+        </div>
+        <div class="control-card"><div class="control-title">Pump</div>
+            <button id="pumpBtn" class="control-btn pump off" onclick="toggle(6)">OFF <i class="fa-solid fa-droplet"></i></button>
+        </div>
+        <div class="control-card"><div class="control-title">Spray</div>
+            <button id="sprayBtn" class="control-btn spray off" onclick="toggle(8)">OFF <i class="fa-solid fa-spray-can"></i></button>
+        </div>
+        <div class="control-card"><div class="control-title">Camera Capture</div>
+            <button id="captureBtn" class="control-btn light" onclick="captureImage()">CAPTURE <i class="fa-solid fa-camera"></i></button>
+        </div>
     </div>
 </div>
 
@@ -211,7 +223,7 @@ updateChartAll(t,h,s,l);}
 function updateBtn(id,val,icon){const btn=document.getElementById(id); btn.classList.remove("on","off","disabled"); if(val==="1"){btn.classList.add("on"); btn.innerHTML=`ON <i class="fa-solid ${icon}"></i>`;} else {btn.classList.add("off"); btn.innerHTML=`OFF <i class="fa-solid ${icon}"></i>`;} btn.disabled=isAuto; if(isAuto) btn.classList.add("disabled");}
 
 async function updateButtons(){updateBtn("lightBtn",await getValue(4),"fa-sun"); updateBtn("fanBtn",await getValue(5),"fa-fan"); updateBtn("pumpBtn",await getValue(6),"fa-droplet"); updateBtn("sprayBtn",await getValue(8),"fa-spray-can");
-let mode=await getValue(9); const modeBtn=document.getElementById("modeBtn"); if(mode==="1"){isAuto=true; modeBtn.innerHTML='AUTO <i class="fa-solid fa-robot"></i>'; modeBtn.className="control-btn mode-auto";} else{isAuto=false; modeBtn.innerHTML='NORMAL <i class="fa-solid fa-hand"></i>'; modeBtn.className="control-btn mode-normal";}}
+let mode=await getValue(9); const modeBtn=document.getElementById("modeBtn"); if(mode==="1"){isAuto=true; modeBtn.innerHTML='AUTO <i class="fa-solid fa-robot"></i>'; modeBtn.className="control-btn mode-auto";} else{isAuto=false; modeBtn.innerHTML='MANUAL <i class="fa-solid fa-hand"></i>'; modeBtn.className="control-btn mode-normal";}}
 
 // ACTIONS
 async function toggle(pin){if(isAuto)return; let v=await getValue(pin); await setValue(pin,v==="1"?0:1);}
@@ -219,6 +231,29 @@ async function toggleMode(){let v=await getValue(9); await setValue(9,v==="1"?0:
 
 // CAMERA
 async function updateCamera(){let url=await getValue(12); if(url.startsWith("http")) document.getElementById("camera").src=url+"?t="+Date.now();}
+
+// CAPTURE IMAGE
+async function captureImage() {
+    const camera = document.getElementById("camera");
+    const canvas = document.createElement("canvas");
+    canvas.width = camera.videoWidth || 640;
+    canvas.height = camera.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(camera, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/png");
+
+    try {
+        await fetch("http://localhost:5000/capture", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: dataUrl })
+        });
+        alert("Ảnh đã được chụp và gửi để phân tích!");
+    } catch (err) {
+        console.error(err);
+        alert("Lỗi khi gửi ảnh!");
+    }
+}
 
 // LOOP
 setInterval(updateSensors,2000);
