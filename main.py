@@ -1,3 +1,4 @@
+# FULL OK DONE
 from datetime import datetime
 import cv2
 import threading
@@ -12,7 +13,7 @@ import pandas as pd
 import joblib
 import subprocess
 import re
-from flask import Flask, send_file, Response
+from flask import Flask, send_file
 
 Image_path = "capture.jpg"
 
@@ -47,27 +48,10 @@ def run_cloudflare():
 if not os.path.exists("LogData"):
     os.makedirs("LogData")
 
-def gen_frames():
-    global cap
-    while True:
-        success, frame = cap.read()
-        if not success:
-            continue
-        else:
-            # Encode frame as JPEG
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
-            # Yield in MJPEG format
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-
-@app.route('/video_feed')
-def video_feed():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
 MAX_WATER = 10.0  # giây
 MAX_SPRAY = 10.0  # giây
 irrigation_time = MAX_WATER  # thời gian tưới nước
+
 SOIL_DRY = 10       # < 20% → khô
 TEMP_LOW = 30       # < 30°C → tắt quạt
 TEMP_HIGH = 34      # > 34°C → bật quạt
@@ -85,10 +69,7 @@ client = InferenceHTTPClient(
     api_key=ROBOFLOW_API_KEY
 )
 
-cap = cv2.VideoCapture(1)
-if not cap.isOpened():
-    print("Camera not found")
-    exit()
+cap = cv2.VideoCapture(0)
 frame = None
 capture_flag = False
 counter = 0
@@ -101,13 +82,16 @@ lux = "--"
 
 MODEL_FILE = "ai_model.pkl"
 
+
 def train_model():
     if not os.path.exists("ai_dataset.csv"):
         return None
 
     df = pd.read_csv("ai_dataset.csv")
+
     X = df[["temp", "hum", "soil", "lux", "pest", "wilt"]]
     y = df[["irrigation", "spray"]]
+
     model = RandomForestRegressor(n_estimators=50)
     model.fit(X, y)
 
@@ -116,14 +100,17 @@ def train_model():
 
     return model
 
+
 def auto_retrain():
     global counter, model
+
     counter += 1
 
-    if counter >= 10:  # mỗi 10 lần chạy sẽ training
+    if counter >= 1:  # mỗi lần chạy sẽ training
         print("Retraining model...")
         model = train_model()
         counter = 0
+
 
 def load_model():
     if os.path.exists(MODEL_FILE):
@@ -131,11 +118,12 @@ def load_model():
     else:
         return train_model()
 
+
 model = load_model()
 
 # ================= TKINTER =================
 root = Tk()
-root.title("Greenhouse system")
+root.title("MÔ HÌNH NHÀ KÍNH TRỒNG RAU")
 root.geometry("1200x700")
 
 lbl_image = Label(root, bg="orange")
@@ -172,7 +160,6 @@ def update_camera():
 
 
 # ================= INFERENCE =================
-# Bounding Box
 COLOR_MAP = {
     "leaf": (0, 255, 0),  # xanh lá
     "pest": (0, 0, 255),  # đỏ
@@ -216,22 +203,13 @@ def save_dataset(temp, hum, soil, lux, pest, wilt, irrigation, spray):
 
 def run_inference():
     global frame, irrigation_time, Image_path, last_light
+
+
     if frame is None:
         return
 
     # ================= BLYNK ON =================
-    '''
-    V0: Nhiet do
-    V1: Do am
-    V2: Do am dat
-    V3: Anh sang (lux)
-    V4: Đen sinh truong
-    V5: Quat
-    V6: Bom
-    V7: Led trang
-    V8: Phun thuoc
-    '''
-    blynk_write("V7", 1)  # Bat den led trang de chup anh
+    blynk_write("V7", 1)
     blynk_write("V4", 0)  # Tắt đèn Tăng trưởng
     last_light = -1
     time.sleep(3)
@@ -239,12 +217,18 @@ def run_inference():
     path = "capture.jpg"
     cv2.imwrite(path, frame)
 
-    results = client.infer(path, model_id=MODEL_ID) # Gui anh len Roboflow de nhan ket qua du doan(class, bounding, confidence)
+    results = client.infer(path, model_id=MODEL_ID)
+
     img = frame.copy()
 
     # ================= THỐNG KÊ =================
-    leaf_count = pest_count = wilt_count = 0
-    leaf_area = pest_area = wilt_area = 0
+    leaf_count = 0
+    pest_count = 0
+    wilt_count = 0
+
+    leaf_area = 0
+    pest_area = 0
+    wilt_area = 0
 
     # ================= LOOP =================
     for pred in results['predictions']:
@@ -339,6 +323,7 @@ def run_inference():
 
     lbl_image.imgtk = img
     lbl_image.configure(image=img)
+
     lbl_result.config(text=text_out)
 
     # //////////////////////////////////////////////////////////
@@ -435,6 +420,7 @@ def get_blynk_value(pin):
     except:
         return "--"
 
+
 def blynk_write(pin, value):
     try:
         url = f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&{pin}={value}"
@@ -494,8 +480,6 @@ def update_sensor():
         if light != last_light:
             blynk_write("V4", light)  # đèn sinh trưởng: ban đêm nghỉ, ban ngày sáng yếu mới bật
             last_light = light
-    else:
-        last_light = -1
 
     root.after(2000, update_sensor)  # mỗi 2s gọi lại
 
@@ -522,6 +506,7 @@ def check_trigger():
                 is_running = False
 
             threading.Thread(target=task).start()
+
             # reset trigger
             requests.get(f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&v10=0")
 

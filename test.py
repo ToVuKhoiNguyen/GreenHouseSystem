@@ -311,7 +311,7 @@ def run_inference_task():
     # Lưu ảnh
     filename = time.strftime("LogData/%Y%m%d_%H%M%S.jpg")
     cv2.imwrite(filename, img_out)
-    cv2.imwrite("capture.jpg", img_out)
+    cv2.imwrite("latest_result.jpg", img_out)
     print(f"✅ Saved: {filename}")
 
     # Tắt đèn trắng
@@ -377,11 +377,11 @@ def result():
     """Trả kết quả AI mới nhất dạng JSON"""
     return jsonify(last_result)
 
-@app.route("/capture")
+@app.route("/latest_result")
 def latest_result():
     """Ảnh annotate mới nhất"""
-    if os.path.exists("capture.jpg"):
-        return send_file("capture.jpg", mimetype="image/jpeg")
+    if os.path.exists("latest_result.jpg"):
+        return send_file("latest_result.jpg", mimetype="image/jpeg")
     return "No image yet", 404
 
 @app.route("/status")
