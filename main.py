@@ -1,537 +1,443 @@
-# FULL OK DONE
-from datetime import datetime
 import cv2
 import threading
 import time
-from tkinter import *
-from PIL import Image, ImageTk
-from inference_sdk import InferenceHTTPClient
 import requests
 import os
+import re
+import subprocess
+from datetime import datetime
+from inference_sdk import InferenceHTTPClient
 from sklearn.ensemble import RandomForestRegressor
 import pandas as pd
 import joblib
-import subprocess
-import re
-from flask import Flask, send_file
+from flask import Flask, send_file, Response, jsonify
+from flask_cors import CORS
 
-Image_path = "capture.jpg"
+# ============================================================
+#  CONFIG
+# ============================================================
+BLYNK_AUTH       = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4"
+#ROBOFLOW_API_KEY = "C5XOHHSHXJqy9FExFgkc" Model cũ
+#MODEL_ID         = "nhandienrau-iajgf/3"
+ROBOFLOW_API_KEY = "G1wXVaCU8zRCimzdnuHW"         
+MODEL_ID         = "nhandienrau-iajgf/3"
+
+
+MAX_WATER  = 10.0
+MAX_SPRAY  = 10.0
+SOIL_DRY   = 10
+TEMP_LOW   = 30
+TEMP_HIGH  = 34
+LUX_LOW    = 500
+COOLDOWN   = 60
+MODEL_FILE = "ai_model.pkl"
+CSV_PATH   = r"C:\DoAnTotNghiep\ai_dataset.csv"
+
+# ── Firebase Realtime Database ───────────────────────────────
+# Chỉ cần điền DATABASE_URL của bạn vào đây
+# Ví dụ: "https://greenhouse-abc123-default-rtdb.firebaseio.com"
+FIREBASE_DB_URL = "https://greenhouse-31c64-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+# Node gốc trong Realtime Database
+FB_NODE = "ai_dataset"
+# ============================================================
 
 app = Flask(__name__)
-@app.route("/image")
-def get_image():
-    return send_file(Image_path, mimetype='image/jpeg')
+CORS(app)
 
-def run_flask():
-    app.run(host="0.0.0.0", port=5000)
+os.makedirs("LogData", exist_ok=True)
 
-def run_cloudflare():
-    process = subprocess.Popen(
-        ["cloudflared", "tunnel", "--url", "http://localhost:5000"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
-    )
-
-    for line in process.stdout:
-        print(line.strip())
-
-        # tìm link public
-        match = re.search(r"(https://[a-zA-Z0-9\-]+\.trycloudflare\.com)", line)
-
-        if match:
-            public_url = match.group(1)
-            print("\n🔥 PUBLIC URL:", public_url + "/image\n")
-            image_url = public_url + "/image"
-            blynk_write("V12", image_url)
-
-if not os.path.exists("LogData"):
-    os.makedirs("LogData")
-
-MAX_WATER = 10.0  # giây
-MAX_SPRAY = 10.0  # giây
-irrigation_time = MAX_WATER  # thời gian tưới nước
-
-SOIL_DRY = 10       # < 20% → khô
-TEMP_LOW = 30       # < 30°C → tắt quạt
-TEMP_HIGH = 34      # > 34°C → bật quạt
-LUX_LOW = 500
-
-# ================= CONFIG =================
-BLYNK_AUTH = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4"
-ROBOFLOW_API_KEY = "C5XOHHSHXJqy9FExFgkc"
-MODEL_ID = "nhandienrau-iajgf/1"
-# =========================================
-
-# Roboflow client
+# ── Roboflow ─────────────────────────────────────────────────
 client = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
     api_key=ROBOFLOW_API_KEY
 )
 
+# ── Camera ───────────────────────────────────────────────────
 cap = cv2.VideoCapture(0)
-frame = None
-capture_flag = False
-counter = 0
+frame_lock    = threading.Lock()
+current_frame = None
 
-# Sensor data
-temp = "--"
-hum = "--"
-soil = "--"
-lux = "--"
+def camera_loop():
+    global current_frame
+    while True:
+        ret, frame = cap.read()
+        if ret:
+            with frame_lock:
+                current_frame = frame.copy()
+        time.sleep(0.033)
 
-MODEL_FILE = "ai_model.pkl"
+threading.Thread(target=camera_loop, daemon=True).start()
 
+# ── State ────────────────────────────────────────────────────
+last_result     = {}
+irrigation_time = MAX_WATER
+is_inferring    = False
+pump_running    = False
+last_pump_time  = 0
+last_fan        = -1
+last_light      = -1
+counter         = 0
 
+# ============================================================
+#  AI MODEL
+# ============================================================
 def train_model():
-    if not os.path.exists("ai_dataset.csv"):
+    if not os.path.exists(CSV_PATH):
         return None
-
-    df = pd.read_csv("ai_dataset.csv")
-
-    X = df[["temp", "hum", "soil", "lux", "pest", "wilt"]]
-    y = df[["irrigation", "spray"]]
-
+    df    = pd.read_csv(CSV_PATH)
+    X     = df[["temp","hum","soil","lux","pest","wilt"]]
+    y     = df[["irrigation","spray"]]
     model = RandomForestRegressor(n_estimators=50)
     model.fit(X, y)
-
     joblib.dump(model, MODEL_FILE)
-    print("Model trained!")
-
+    print("✅ Model trained!")
     return model
 
-
-def auto_retrain():
-    global counter, model
-
-    counter += 1
-
-    if counter >= 1:  # mỗi lần chạy sẽ training
-        print("Retraining model...")
-        model = train_model()
-        counter = 0
-
-
 def load_model():
-    if os.path.exists(MODEL_FILE):
-        return joblib.load(MODEL_FILE)
-    else:
-        return train_model()
-
+    return joblib.load(MODEL_FILE) if os.path.exists(MODEL_FILE) else train_model()
 
 model = load_model()
 
-# ================= TKINTER =================
-root = Tk()
-root.title("MÔ HÌNH NHÀ KÍNH TRỒNG RAU")
-root.geometry("1200x700")
-
-lbl_image = Label(root, bg="orange")
-lbl_image.place(x=50, y=100, width=700, height=450)
-
-txt_result = Label(root, text="Kết quả phân tích:", fg="red", font=("Arial", 16))
-txt_result.place(x=800, y=100)
-
-lbl_result = Label(root, text="", fg="brown", justify=LEFT, font=("Arial", 14))
-lbl_result.place(x=800, y=130)
-
-lbl_sensor = Label(root, text="", fg="black", font=("Arial", 14))
-lbl_sensor.place(x=50, y=50)
-
-lbl_cam = Label(root)
-lbl_cam.place(x=850, y=450, width=250, height=180)
-
-lbl_time = Label(root, fg="blue", font=("Arial", 16))
-lbl_time.place(x=850, y=30)
-
-
-# ================= CAMERA LOOP =================
-def update_camera():
-    global frame
-    ret, frame = cap.read()
-    if ret:
-        img = cv2.resize(frame, (250, 180))
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = ImageTk.PhotoImage(Image.fromarray(img))
-        lbl_cam.imgtk = img
-        lbl_cam.configure(image=img)
-
-    root.after(30, update_camera)
-
-
-# ================= INFERENCE =================
-COLOR_MAP = {
-    "leaf": (0, 255, 0),  # xanh lá
-    "pest": (0, 0, 255),  # đỏ
-    "wilt": (0, 255, 255),  # vàng
-    "chit": (255, 0, 0),  # xanh dương
-    "small": (255, 0, 0),
-    "medium": (255, 0, 0),
-    "big": (255, 0, 0),
-}
-
-
-def predict_ai(temp, hum, soil, lux, pest, wilt):
+def predict_ai(t, h, s, l, pest, wilt):
     global model
-
     if model is None:
         return MAX_WATER * wilt, MAX_SPRAY * pest
-
     try:
-        X = pd.DataFrame([[float(temp), float(hum), float(soil), float(lux), pest, wilt]],
-                         columns=["temp", "hum", "soil", "lux", "pest", "wilt"])
-
-        pred = model.predict(X)[0]
-
-        irrigation = max(0, float(pred[0]))
-        spray = max(0, float(pred[1]))
-
-        return irrigation, spray
+        X = pd.DataFrame([[float(t), float(h), float(s), float(l), pest, wilt]],
+                         columns=["temp","hum","soil","lux","pest","wilt"])
+        p = model.predict(X)[0]
+        return max(0, float(p[0])), max(0, float(p[1]))
     except:
         return 0, 0
 
+# ============================================================
+#  FIREBASE REALTIME DATABASE  (dùng REST API — không cần SDK)
+# ============================================================
+def fb_url(path=""):
+    """Tạo URL REST cho Realtime Database."""
+    return f"{FIREBASE_DB_URL}/{path}.json"
 
-def save_dataset(temp, hum, soil, lux, pest, wilt, irrigation, spray):
-    file_exists = os.path.exists("ai_dataset.csv")
+def fb_push(data: dict):
+    """
+    POST một record mới vào node ai_dataset.
+    Firebase tự tạo key dạng -NxXXXX (push id).
+    """
+    try:
+        url = fb_url(FB_NODE)
+        r   = requests.post(url, json=data, timeout=5)
+        if r.status_code == 200:
+            print(f"  ☁️  Firebase ← {r.json().get('name','?')}")
+        else:
+            print(f"  Firebase push error: {r.status_code} {r.text}")
+    except Exception as e:
+        print(f"  Firebase push exception: {e}")
 
-    with open("ai_dataset.csv", "a") as f:
-        if not file_exists:
-            f.write("temp,hum,soil,lux,pest,wilt,irrigation,spray\n")
-
-        f.write(f"{temp},{hum},{soil},{lux},{pest},{wilt},{irrigation},{spray}\n")
-
-
-def run_inference():
-    global frame, irrigation_time, Image_path, last_light
-
-
-    if frame is None:
+def fb_sync_csv(path: str):
+    """
+    Đọc toàn bộ CSV rồi PUT lên Firebase theo từng batch.
+    Chạy nền một lần khi khởi động.
+    """
+    if not os.path.exists(path):
+        print("CSV not found, skip sync.")
         return
+    try:
+        df = pd.read_csv(path).fillna(0)
+        print(f"⏳ Syncing {len(df)} CSV rows → Firebase Realtime DB...")
+        data_dict = {}
+        for i, row in df.iterrows():
+            key = f"row_{i:06d}"
+            data_dict[key] = {
+                "timestamp":  str(row.get("timestamp", f"csv_row_{i:06d}")),
+                "temp":       float(row.get("temp", 0)),
+                "hum":        float(row.get("hum",  0)),
+                "soil":       float(row.get("soil", 0)),
+                "lux":        float(row.get("lux",  0)),
+                "pest":       float(row.get("pest", 0)),
+                "wilt":       float(row.get("wilt", 0)),
+                "irrigation": float(row.get("irrigation", 0)),
+                "spray":      float(row.get("spray", 0)),
+            }
+        # PUT toàn bộ dict — ghi đè node ai_dataset
+        r = requests.put(fb_url(FB_NODE), json=data_dict, timeout=30)
+        if r.status_code == 200:
+            print(f"✅ Synced {len(df)} rows → Firebase Realtime DB")
+        else:
+            print(f"Firebase sync error: {r.status_code}")
+    except Exception as e:
+        print(f"Firebase sync exception: {e}")
 
-    # ================= BLYNK ON =================
-    blynk_write("V7", 1)
-    blynk_write("V4", 0)  # Tắt đèn Tăng trưởng
-    last_light = -1
-    time.sleep(3)
+# Sync CSV lịch sử khi khởi động (chạy nền)
+threading.Thread(target=fb_sync_csv, args=(CSV_PATH,), daemon=True).start()
 
-    path = "capture.jpg"
-    cv2.imwrite(path, frame)
+def save_dataset(t, h, s, l, pest, wilt, irr, spray):
+    os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
+    exists = os.path.exists(CSV_PATH)
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    with open(CSV_PATH, "a") as f:
+        if not exists:
+            # thêm timestamp vào header
+            f.write("timestamp,temp,hum,soil,lux,pest,wilt,irrigation,spray\n")
+        f.write(f"{ts},{t},{h},{s},{l},{pest},{wilt},{irr},{spray}\n")
 
-    results = client.infer(path, model_id=MODEL_ID)
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
+    row = {
+        "timestamp":  ts,
+        "temp":       float(t)    if t    not in ("--","") else 0,
+        "hum":        float(h)    if h    not in ("--","") else 0,
+        "soil":       float(s)    if s    not in ("--","") else 0,
+        "lux":        float(l)    if l    not in ("--","") else 0,
+        "pest":       float(pest),
+        "wilt":       float(wilt),
+        "irrigation": float(irr),
+        "spray":      float(spray),
+    }
+    threading.Thread(target=fb_push, args=(row,), daemon=True).start()
 
-    img = frame.copy()
+# ============================================================
+#  BLYNK
+# ============================================================
+def get_blynk(pin):
+    try:
+        r = requests.get(
+            f"https://blynk.cloud/external/api/get?token={BLYNK_AUTH}&v{pin}",
+            timeout=2)
+        return r.text if r.status_code == 200 else "--"
+    except:
+        return "--"
 
-    # ================= THỐNG KÊ =================
-    leaf_count = 0
-    pest_count = 0
-    wilt_count = 0
-
-    leaf_area = 0
-    pest_area = 0
-    wilt_area = 0
-
-    # ================= LOOP =================
-    for pred in results['predictions']:
-        x = int(pred['x'])
-        y = int(pred['y'])
-        w = int(pred['width'])
-        h = int(pred['height'])
-        cls = pred['class']
-        conf = pred['confidence']
-
-        area = w * h
-
-        # Đếm & tính diện tích
-        if cls == "leaf":
-            leaf_count += 1
-            leaf_area += area
-        elif cls == "pest":
-            pest_count += 1
-            pest_area += area
-        elif cls == "wilt":
-            wilt_count += 1
-            wilt_area += area
-
-        # Vẽ bbox
-        x1 = int(x - w / 2)
-        y1 = int(y - h / 2)
-        x2 = int(x + w / 2)
-        y2 = int(y + h / 2)
-
-        color = COLOR_MAP.get(cls, (255, 255, 255))  # mặc định trắng nếu không có
-        label = f"{cls} {conf:.2f}"
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-
-        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-        cv2.rectangle(img, (x1, y1 - th - 5), (x1 + tw, y1), color, -1)
-        cv2.putText(img, label, (x1, y1 - 2),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-
-    # ================= TÍNH TOÁN =================
-    total_leaf = leaf_count + pest_count + wilt_count
-    total_area = leaf_area + pest_area + wilt_area
-
-    if total_area > 0:
-        pest_severity = pest_area / total_area
-        wilt_severity = wilt_area / total_area
-    else:
-        pest_severity = 0
-        wilt_severity = 0
-
-    stress_index = pest_severity + wilt_severity
-
-    # ================= STATUS =================
-    if stress_index < 0.05:
-        status = "Healthy"
-    elif stress_index < 0.15:
-        status = "Stress nhẹ"
-    elif stress_index < 0.35:
-        status = "Stress trung bình"
-    else:
-        status = "Stress nặng"
-
-    real_irrigation = MAX_WATER * wilt_severity
-    real_spray = MAX_SPRAY * pest_severity
-
-    irrigation_time, spray_time = predict_ai(temp, hum, soil, lux, pest_severity, wilt_severity)
-
-    # ================= LƯU DATA =================
-    save_dataset(temp, hum, soil, lux, pest_severity, wilt_severity, real_irrigation, real_spray)
-    auto_retrain()
-
-    # ================= HIỂN THỊ TEXT =================
-    current_time = time.strftime("%H:%M:%S - %d/%m/%Y")
-    text_out = (
-        f"Time: {current_time}\n"
-        f"Leaf detected: {total_leaf}\n"
-        f"Pest detected: {pest_count}\n"
-        f"Wilt detected: {wilt_count}\n"
-        f"Pest severity: {pest_severity:.3f}\n"
-        f"Wilt severity: {wilt_severity:.3f}\n"
-        f"Plant stress index: {stress_index:.3f}\n"
-        f"Status: {status}\n"
-        f"Irrigation: {irrigation_time:.2f} s\n"
-        f"Spray time: {spray_time:.2f} s"
-    )
-
-    # ================= HIỂN THỊ ẢNH =================
-    overlay = img.copy()
-    image = img.copy()
-    img = cv2.resize(img, (700, 450))
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = ImageTk.PhotoImage(Image.fromarray(img))
-
-    lbl_image.imgtk = img
-    lbl_image.configure(image=img)
-
-    lbl_result.config(text=text_out)
-
-    # //////////////////////////////////////////////////////////
-
-    # ================= TIME & SENSOR =================
-
-
-    sensor_text = (
-        f"Temp: {temp} *C\n"
-        f"Hum: {hum} %\n"
-        f"Soil: {soil} %\n"
-        f"Lux: {lux} lx"
-    )
-
-    # ================= OVERLAY TEXT =================
-
-    # nền mờ bên trái
-    cv2.rectangle(overlay, (0, 0), (300, 400), (50, 50, 50), -1)
-    alpha = 0.5
-    img_overlay = cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0)
-    img = img_overlay
-
-    y0 = 20
-    dy = 20
-    info_lines = [
-        f"Time: {current_time}",
-        f"Leaf detected: {total_leaf}",
-        f"Pest detected: {pest_count}",
-        f"Wilt detected: {wilt_count}",
-        f"Pest severity: {pest_severity:.3f}",
-        f"Wilt severity: {wilt_severity:.3f}",
-        f"Stress index: {stress_index:.3f}",
-        f"Status: {status}",
-        f"Irrigation: {irrigation_time:.2f} s",
-        f"Spray: {spray_time:.2f} s"
-    ]
-
-    for i, line in enumerate(info_lines):
-        y = y0 + i * dy
-        cv2.putText(img, line, (10, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
-    # SENSOR
-    for i, line in enumerate(sensor_text.split("\n")):
-        y = y0 + (len(info_lines) + 1 + i) * dy
-        cv2.putText(img, line, (10, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
-
-    # ================= LƯU ẢNH =================
-    filename = time.strftime("LogData/%Y%m%d_%H%M%S.jpg")
-    Image_path = filename
-    cv2.imwrite(filename, img)
-    print("Saved:", filename)
-
-    # ================= TẮT BLYNK =================
-    blynk_write("V7", 0)
-
-    # if irrigation_time > 1:
-    #     blynk_write("V6", 1)
-    #     threading.Thread(target=auto_off, args=("V6", irrigation_time)).start()
-
-    if spray_time > 0.5: # nhận diện ảnh để phun thuốc, tưới cây phụ thuộc vào cảm biến
-        blynk_write("V8", 1)
-        threading.Thread(target=auto_off, args=("V8", spray_time)).start()
-
-    root.after(24 * 60 * 60 * 1000, run_inference)
-
+def set_blynk(pin, value):
+    try:
+        requests.get(
+            f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&{pin}={value}",
+            timeout=2)
+        print(f"  Blynk {pin} = {value}")
+    except Exception as e:
+        print("Blynk error:", e)
 
 def auto_off(pin, t):
     global pump_running
     time.sleep(t)
-    blynk_write(pin, 0)
+    set_blynk(pin, 0)
     pump_running = False
 
+# ============================================================
+#  SENSOR LOOP
+# ============================================================
+def sensor_loop():
+    global pump_running, last_pump_time, last_fan, last_light
+    while True:
+        try:
+            t    = get_blynk(0); h    = get_blynk(1)
+            soil = get_blynk(2); lux  = get_blynk(3)
+            mode = get_blynk(9)
 
-# ================= KEY EVENT =================
-def on_space(event):
-    threading.Thread(target=run_inference).start()
+            if mode == "1":
+                soil_v = int(float(soil)) if soil not in ("--","") else 100
+                if soil_v < SOIL_DRY and not pump_running:
+                    if time.time() - last_pump_time > COOLDOWN:
+                        pump_running = True; last_pump_time = time.time()
+                        set_blynk("V6", 1)
+                        threading.Thread(target=auto_off, args=("V6", irrigation_time), daemon=True).start()
 
+                fan = last_fan
+                try:
+                    tv = float(t)
+                    if tv > TEMP_HIGH: fan = 1
+                    elif tv < TEMP_LOW: fan = 0
+                except: pass
+                if fan != last_fan: set_blynk("V5", fan); last_fan = fan
 
-root.bind("<space>", on_space)
+                light = last_light; hour = datetime.now().hour
+                if hour < 6 or hour > 18: light = 0
+                else:
+                    try:
+                        lv = int(float(lux))
+                        if lv < LUX_LOW: light = 1
+                        elif lv > LUX_LOW + 1200: light = 0
+                    except: pass
+                if light != last_light: set_blynk("V4", light); last_light = light
+            else:
+                last_light = -1
+        except Exception as e:
+            print("sensor_loop error:", e)
+        time.sleep(2)
 
+threading.Thread(target=sensor_loop, daemon=True).start()
 
-# ================= BLYNK =================
-def get_blynk_value(pin):
+# ============================================================
+#  AI INFERENCE
+# ============================================================
+COLOR_MAP = {
+    "leaf":(0,255,0),"pest":(0,0,255),"wilt":(0,255,255),
+    "chit":(255,0,0),"small":(255,0,0),"medium":(255,0,0),"big":(255,0,0),
+}
+
+def run_inference_task():
+    global current_frame, irrigation_time, last_result, last_light, is_inferring, model, counter
+
+    with frame_lock:
+        if current_frame is None:
+            is_inferring = False; return
+        frame = current_frame.copy()
+
+    set_blynk("V7", 1); set_blynk("V4", 0); last_light = -1
+    time.sleep(2)
+    cv2.imwrite("capture.jpg", frame)
+
     try:
-        url = f"https://blynk.cloud/external/api/get?token={BLYNK_AUTH}&v{pin}"
-        response = requests.get(url, timeout=2)
-
-        if response.status_code == 200:
-            return response.text
-        else:
-            return "--"
-    except:
-        return "--"
-
-
-def blynk_write(pin, value):
-    try:
-        url = f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&{pin}={value}"
-        requests.get(url, timeout=2)
-        print(f"Blynk {pin} = {value}")
+        results = client.infer("capture.jpg", model_id=MODEL_ID)
     except Exception as e:
-        print("Blynk error:", e)
+        print("Roboflow error:", e); set_blynk("V7", 0); is_inferring = False; return
 
+    img = frame.copy()
+    leaf_count = pest_count = wilt_count = 0
+    leaf_area  = pest_area  = wilt_area  = 0
 
-# ================= UPDATE SENSOR =================
-pump_running = False
-last_pump_time = 0
-COOLDOWN = 60  # 60s
-last_fan = -1
-last_light = -1
-def update_sensor():
-    global temp, hum, soil, lux, irrigation_time, pump_running, last_pump_time
-    global last_fan, last_light, auto_mode
+    for pred in results["predictions"]:
+        x,y   = int(pred["x"]), int(pred["y"])
+        w,h   = int(pred["width"]), int(pred["height"])
+        cls   = pred["class"]; conf = pred["confidence"]; area = w * h
+        if   cls == "leaf": leaf_count += 1; leaf_area += area
+        elif cls == "pest": pest_count += 1; pest_area += area
+        elif cls == "wilt": wilt_count += 1; wilt_area += area
+        x1,y1 = int(x-w/2), int(y-h/2); x2,y2 = int(x+w/2), int(y+h/2)
+        color = COLOR_MAP.get(cls,(255,255,255))
+        label = f"{cls} {conf:.2f}"
+        (tw,th),_ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.rectangle(img,(x1,y1),(x2,y2),color,2)
+        cv2.rectangle(img,(x1,y1-th-5),(x1+tw,y1),color,-1)
+        cv2.putText(img,label,(x1,y1-2),cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,0,0),1)
 
-    temp = get_blynk_value(0)
-    hum = get_blynk_value(1)
-    soil = get_blynk_value(2)
-    lux = get_blynk_value(3)
+    total_area = leaf_area + pest_area + wilt_area
+    pest_sev   = pest_area / total_area if total_area > 0 else 0
+    wilt_sev   = wilt_area / total_area if total_area > 0 else 0
+    stress     = pest_sev + wilt_sev
 
-    txt = f"Temp: {temp} °C\tHumidity: {hum} %\tSoil: {soil} %\tLux: {lux} lx"
-    lbl_sensor.config(text=txt)
+    if   stress < 0.05: status = "Healthy"
+    elif stress < 0.15: status = "Stress nhẹ"
+    elif stress < 0.35: status = "Stress trung bình"
+    else:               status = "Stress nặng"
 
-    if auto_mode == 1:
-        soil = int(soil) if str(soil).isdigit() else 0
-        if soil < SOIL_DRY and not pump_running:
-            if time.time() - last_pump_time > COOLDOWN:  # Sau COOLDOWN mới bật lại bơm tránh bật tắt liên tục
-                pump_running = True
-                last_pump_time = time.time()
-                blynk_write("V6", 1)  # bật bơm tưới nhỏ giọt
-                threading.Thread(target=auto_off, args=("V6", irrigation_time),daemon=True).start()
+    t_v = get_blynk(0); h_v = get_blynk(1)
+    s_v = get_blynk(2); l_v = get_blynk(3)
+    irrigation_time, spray_time = predict_ai(t_v, h_v, s_v, l_v, pest_sev, wilt_sev)
 
-        fan = last_fan
-        temp = float(temp) if str(temp).isdigit() else 0
-        if float(temp) > TEMP_HIGH:
-            fan = 1
-        elif float(temp) < TEMP_LOW:
-            fan = 0
-        if fan != last_fan:
-            blynk_write("V5", fan)
-            last_fan = fan
+    save_dataset(t_v, h_v, s_v, l_v, pest_sev, wilt_sev,
+                 MAX_WATER * wilt_sev, MAX_SPRAY * pest_sev)
+    counter += 1
+    if counter >= 100: model = train_model(); counter = 0
 
-        light = last_light
-        hour = datetime.now().hour
-        if hour < 6 or hour > 18:
-            light = 0
-        else:
-            lux = int(lux) if str(lux).isdigit() else 0
-            if lux < LUX_LOW:
-                light = 1
-            elif lux > LUX_LOW + 1200:
-                light = 0
-        if light != last_light:
-            blynk_write("V4", light)  # đèn sinh trưởng: ban đêm nghỉ, ban ngày sáng yếu mới bật
-            last_light = light
+    current_time = time.strftime("%H:%M:%S - %d/%m/%Y")
+    overlay = img.copy(); img_out = img.copy()
+    cv2.rectangle(overlay,(0,0),(310,230),(30,30,30),-1)
+    img_out = cv2.addWeighted(overlay,0.55,img_out,0.45,0)
+    lines = [
+        f"Time:   {current_time}",
+        f"Leaf:   {leaf_count+pest_count+wilt_count}",
+        f"Pest:   {pest_count}  ({pest_sev:.3f})",
+        f"Wilt:   {wilt_count}  ({wilt_sev:.3f})",
+        f"Stress: {stress:.3f}", f"Status: {status}",
+        f"Irrig:  {irrigation_time:.1f}s", f"Spray:  {spray_time:.1f}s",
+    ]
+    for i,line in enumerate(lines):
+        cv2.putText(img_out,line,(8,22+i*22),cv2.FONT_HERSHEY_SIMPLEX,0.52,(255,255,255),1)
 
-    root.after(2000, update_sensor)  # mỗi 2s gọi lại
+    filename = time.strftime("LogData/%Y%m%d_%H%M%S.jpg")
+    cv2.imwrite(filename, img_out)
+    cv2.imwrite("latest_result.jpg", img_out)
+    print(f"✅ Saved: {filename}")
 
+    set_blynk("V7", 0)
+    if spray_time > 0.5:
+        set_blynk("V8", 1)
+        threading.Thread(target=auto_off, args=("V8", spray_time), daemon=True).start()
 
-is_running = False
-auto_mode = 0
+    last_result = {
+        "time":          current_time,
+        "leaf_count":    leaf_count + pest_count + wilt_count,
+        "pest_count":    pest_count,
+        "wilt_count":    wilt_count,
+        "pest_severity": round(pest_sev, 3),
+        "wilt_severity": round(wilt_sev, 3),
+        "stress_index":  round(stress, 3),
+        "status":        status,
+        "irrigation":    round(irrigation_time, 2),
+        "spray":         round(spray_time, 2),
+    }
+    is_inferring = False
 
+# ============================================================
+#  FLASK ROUTES
+# ============================================================
+def gen_frames():
+    while True:
+        with frame_lock:
+            if current_frame is None: time.sleep(0.05); continue
+            frame = current_frame.copy()
+        ret, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        if not ret: continue
+        yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
+        time.sleep(0.05)
 
-def check_trigger():
-    global is_running, auto_mode
+@app.route("/video_feed")
+def video_feed():
+    return Response(gen_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
+@app.route("/capture", methods=["POST"])
+def capture():
+    global is_inferring
+    if is_inferring:
+        return jsonify({"status":"busy","message":"Đang phân tích..."})
+    is_inferring = True
+    threading.Thread(target=run_inference_task, daemon=True).start()
+    return jsonify({"status":"ok","message":"Đang xử lý AI..."})
+
+@app.route("/result")
+def result():
+    return jsonify(last_result)
+
+@app.route("/latest_result")
+def latest_result():
+    if os.path.exists("latest_result.jpg"):
+        return send_file("latest_result.jpg", mimetype="image/jpeg")
+    return "No image yet", 404
+
+@app.route("/status")
+def status_check():
+    return jsonify({"inferring": is_inferring, "has_result": bool(last_result)})
+
+@app.route("/csv_data")
+def csv_data():
+    """Fallback: trả JSON từ CSV khi Firebase không dùng được."""
     try:
-        auto_mode = int(get_blynk_value(9) or 0)
-        trigger = int(get_blynk_value(10) or 0)
-
-        if auto_mode == 1 and trigger == 1 and not is_running:
-            print("Auto mode + Trigger!")
-
-            is_running = True
-
-            def task():
-                global is_running
-                run_inference()
-                is_running = False
-
-            threading.Thread(target=task).start()
-
-            # reset trigger
-            requests.get(f"https://blynk.cloud/external/api/update?token={BLYNK_AUTH}&v10=0")
-
+        if not os.path.exists(CSV_PATH):
+            return jsonify([])
+        df = pd.read_csv(CSV_PATH).tail(200).fillna(0)
+        records = df.to_dict(orient="records")
+        for i, r in enumerate(records):
+            r["timestamp"] = f"csv_row_{i:06d}"
+        return jsonify(records)
     except Exception as e:
-        print("Lỗi:", e)
+        return jsonify({"error": str(e)}), 500
 
-    root.after(1000, check_trigger)
+# ── Cloudflare tunnel ────────────────────────────────────────
+def run_cloudflare():
+    proc = subprocess.Popen(
+        ["cloudflared","tunnel","--url","http://localhost:5000"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    for line in proc.stdout:
+        print(line.strip())
+        m = re.search(r"(https://[a-zA-Z0-9\-]+\.trycloudflare\.com)", line)
+        if m:
+            url = m.group(1)
+            print(f"\n🔥 PUBLIC URL: {url}\n")
+            set_blynk("V12", url)
 
+threading.Thread(target=run_cloudflare, daemon=True).start()
 
-# ================= TIME =================
-def update_time():
-    now = time.strftime("%H:%M:%S - %d/%m/%Y")
-    lbl_time.config(text=now)
-    root.after(1000, update_time)
-
-
-threading.Thread(target=run_flask, daemon=True).start()
-time.sleep(2)  # đợi flask chạy
-threading.Thread(target=run_cloudflare).start()
-
-# ================= START =================
-update_camera()
-update_sensor()
-update_time()
-check_trigger()
-root.mainloop()
-
-
+# ============================================================
+if __name__ == "__main__":
+    print("🌱 Greenhouse API server → http://localhost:5000")
+    app.run(host="0.0.0.0", port=5000, threaded=True)
