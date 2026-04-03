@@ -25,7 +25,8 @@ MODEL_ID         = "nhandienrau-iajgf/3"
 
 MAX_WATER  = 10.0
 MAX_SPRAY  = 10.0
-SOIL_DRY   = 10
+SOIL_DRY   = 35
+SOIL_WET   = 70
 TEMP_LOW   = 30
 TEMP_HIGH  = 34
 LUX_LOW    = 500
