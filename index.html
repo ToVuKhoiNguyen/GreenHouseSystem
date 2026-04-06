@@ -2,278 +2,864 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/gaugeJS/dist/gauge.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smart Greenhouse</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-:root{
-  --bg:#0a0f1a;--panel:#111827;--card:#161f30;--border:#1f3048;
-  --accent:#10b981;--blue:#38bdf8;--warn:#f59e0b;--danger:#ef4444;--purple:#a78bfa;
-  --text:#d1dde8;--muted:#4a6375;
-  --mono:'IBM Plex Mono',monospace;--sans:'DM Sans',sans-serif;
-  --mbg:rgba(0,0,0,.68);--mpanel:#111827;--mhead:#0f1724;
-  --mborder:#1f3048;--mtext:#d1dde8;--mmuted:#4a6375;
-  --malt:#131c2b;--mhov:#1a2640;
+/* ═══════════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════════ */
+:root {
+  --bg:       #070d0a;
+  --surface:  #0d1710;
+  --card:     #101f14;
+  --border:   #1a3320;
+  --border2:  #0f2216;
+  --accent:   #22c55e;
+  --accent2:  #16a34a;
+  --glow:     rgba(34,197,94,.18);
+  --blue:     #38bdf8;
+  --warn:     #fbbf24;
+  --danger:   #f87171;
+  --purple:   #c084fc;
+  --text:     #d4edda;
+  --muted:    #4a6b55;
+  --muted2:   #2a4030;
+  --mono:     'Space Mono', monospace;
+  --sans:     'Syne', sans-serif;
 }
-body.light{
-  --bg:#f0f4f8;--panel:#fff;--card:#fff;--border:#d1dde8;
-  --accent:#059669;--blue:#0284c7;--warn:#d97706;--danger:#dc2626;--purple:#7c3aed;
-  --text:#1e293b;--muted:#64748b;
-  --mbg:rgba(0,0,0,.42);--mpanel:#fff;--mhead:#f1f5f9;
-  --mborder:#cbd5e1;--mtext:#1e293b;--mmuted:#64748b;
-  --malt:#f8fafc;--mhov:#e8f4fd;
+/* LIGHT */
+body.light {
+  --bg:      #f0f7f2;
+  --surface: #fff;
+  --card:    #fff;
+  --border:  #c8e6d0;
+  --border2: #e0f0e5;
+  --accent:  #16a34a;
+  --accent2: #15803d;
+  --glow:    rgba(22,163,74,.12);
+  --blue:    #0284c7;
+  --warn:    #d97706;
+  --danger:  #dc2626;
+  --purple:  #9333ea;
+  --text:    #1a2e1e;
+  --muted:   #5a8a6a;
+  --muted2:  #d4edda;
 }
+
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:var(--sans);background:var(--bg);color:var(--text);font-size:12px;height:100vh;overflow:hidden;transition:background .25s,color .25s;}
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  height: 100vh;
+  overflow: hidden;
+  transition: background .3s, color .3s;
+}
 
-/* HEADER */
-.header{display:flex;align-items:center;justify-content:space-between;padding:0 14px;height:40px;background:var(--panel);border-bottom:1px solid var(--border);transition:background .25s,border-color .25s;}
-.hdr-left{display:flex;align-items:center;gap:8px;}
-.hdr-left h1{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);letter-spacing:1.5px;}
-.live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 7px var(--accent);animation:blink 2s infinite;}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
-.hdr-right{display:flex;align-items:center;gap:6px;}
-.hdr-clock{font-family:var(--mono);font-size:11px;color:var(--muted);}
-.hdr-btn{width:28px;height:28px;border-radius:7px;border:1px solid var(--border);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:11px;transition:all .15s;}
+/* ── SCANLINE TEXTURE ── */
+body::before {
+  content:'';
+  position:fixed;inset:0;
+  background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+  pointer-events:none;z-index:9999;
+}
+body.light::before { display:none; }
+
+/* ═══════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════ */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 44px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.hdr-left { display:flex;align-items:center;gap:10px; }
+.hdr-logo {
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:12px;font-weight:700;
+  color:var(--accent);letter-spacing:2px;text-transform:uppercase;
+}
+.pulse-ring {
+  width:10px;height:10px;border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 0 0 var(--glow);
+  animation:pulse 2s infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow:0 0 0 0 rgba(34,197,94,.5); }
+  70%  { box-shadow:0 0 0 8px rgba(34,197,94,0); }
+  100% { box-shadow:0 0 0 0 rgba(34,197,94,0); }
+}
+.hdr-right { display:flex;align-items:center;gap:8px; }
+.hdr-clock {
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  background:var(--card);border:1px solid var(--border);
+  padding:3px 10px;border-radius:5px;
+}
+.hdr-btn {
+  width:30px;height:30px;border-radius:6px;
+  border:1px solid var(--border);background:transparent;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--muted);font-size:12px;
+  transition:all .15s;
+}
 .hdr-btn:hover{color:var(--accent);border-color:var(--accent);}
-.fb-badge{font-family:var(--mono);font-size:9px;letter-spacing:1px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);color:var(--muted);background:transparent;transition:all .3s;}
-.fb-badge.ok{color:var(--accent);border-color:var(--accent);}
-.fb-badge.err{color:var(--danger);border-color:var(--danger);}
+.badge-fb {
+  font-family:var(--mono);font-size:8px;letter-spacing:1px;
+  padding:3px 8px;border-radius:4px;
+  border:1px solid var(--border);color:var(--muted);
+  background:transparent;transition:all .3s;
+}
+.badge-fb.ok{color:var(--accent);border-color:var(--accent);background:var(--glow);}
+.badge-fb.err{color:var(--danger);border-color:var(--danger);}
 
-/* ROOT */
-.root{display:grid;grid-template-columns:160px 1fr 190px;gap:7px;padding:7px;height:calc(100vh - 40px);}
+/* ═══════════════════════════════════════════
+   ALERT BANNER
+═══════════════════════════════════════════ */
+#alertBanner {
+  display:none;
+  background:linear-gradient(90deg,rgba(248,113,113,.15),rgba(248,113,113,.05));
+  border-bottom:1px solid rgba(248,113,113,.3);
+  padding:6px 16px;
+  font-family:var(--mono);font-size:10px;
+  color:var(--danger);letter-spacing:.5px;
+  gap:8px;align-items:center;
+}
+#alertBanner.show{display:flex;}
+#alertBanner i{animation:alertBlink 1s infinite;}
+@keyframes alertBlink{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* GAUGES */
-.col-gauges{display:flex;flex-direction:column;gap:7px;overflow:hidden;}
-.sensor{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px 4px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:background .25s,border-color .25s;}
-.sensor h4{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:1px;}
-.sensor canvas{width:90px !important;height:50px !important;}
-.sensor .val{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent);margin-top:3px;}
+/* ═══════════════════════════════════════════
+   MAIN GRID
+═══════════════════════════════════════════ */
+.root {
+  display: grid;
+  grid-template-columns: 200px 1fr 220px;
+  grid-template-rows: 1fr;
+  gap: 8px;
+  padding: 8px;
+  height: calc(100vh - 44px);
+  /* subtract alert banner if visible */
+}
+.root.alert-open { height: calc(100vh - 44px - 31px); }
 
-/* CENTER */
-.col-center{display:grid;grid-template-rows:55% 45%;gap:7px;overflow:hidden;}
-.cam-panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:7px;display:flex;flex-direction:column;gap:5px;overflow:hidden;transition:background .25s,border-color .25s;}
-.cam-panel-title{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);flex-shrink:0;}
-.cam-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1;overflow:hidden;}
+/* ═══════════════════════════════════════════
+   LEFT COLUMN — SENSORS
+═══════════════════════════════════════════ */
+.col-left {
+  display:flex;flex-direction:column;gap:7px;overflow:hidden;
+}
+
+/* VPD Badge */
+.vpd-badge {
+  background:var(--card);border:1px solid var(--border);
+  border-radius:10px;padding:8px 10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.vpd-label{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;}
+.vpd-val{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--blue);}
+
+/* Sensor cards */
+.sensor-card {
+  flex:1;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 12px;
+  display:flex;flex-direction:column;
+  gap:6px;
+  overflow:hidden;
+  transition:border-color .2s;
+  position:relative;
+}
+.sensor-card::after {
+  content:'';
+  position:absolute;left:0;top:20%;bottom:20%;
+  width:2px;border-radius:2px;
+  background:var(--accent);
+  opacity:.6;
+}
+.sensor-card.warn-state{border-color:rgba(251,191,36,.4);}
+.sensor-card.danger-state{border-color:rgba(248,113,113,.4);}
+.sensor-card.warn-state::after{background:var(--warn);}
+.sensor-card.danger-state::after{background:var(--danger);}
+.sc-top{display:flex;align-items:center;justify-content:space-between;}
+.sc-icon{
+  width:26px;height:26px;border-radius:7px;
+  background:var(--glow);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--accent);
+}
+.sc-icon.blue{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.2);color:var(--blue);}
+.sc-icon.warn{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.2);color:var(--warn);}
+.sc-icon.purple{background:rgba(192,132,252,.12);border-color:rgba(192,132,252,.2);color:var(--purple);}
+.sc-name{font-family:var(--mono);font-size:7px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+.sc-val{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text);line-height:1;}
+.sc-sub{font-family:var(--mono);font-size:8px;color:var(--muted);}
+
+/* Progress bar */
+.sc-bar-track{
+  height:3px;background:var(--border2);border-radius:2px;overflow:hidden;
+}
+.sc-bar-fill{
+  height:100%;border-radius:2px;
+  transition:width .6s cubic-bezier(.4,0,.2,1);
+}
+
+/* Mini sparkline */
+.sc-spark{height:30px;flex-shrink:0;}
+
+/* ═══════════════════════════════════════════
+   CENTER COLUMN
+═══════════════════════════════════════════ */
+.col-center {
+  display:grid;
+  grid-template-rows:56% 44%;
+  gap:7px;
+  overflow:hidden;
+}
+
+/* Camera panel */
+.cam-panel {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:8px;
+  display:flex;flex-direction:column;gap:6px;
+  overflow:hidden;
+}
+.cam-panel-title {
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.panel-label {
+  font-family:var(--mono);font-size:8px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--muted);
+  display:flex;align-items:center;gap:6px;
+}
+.panel-label i{font-size:9px;}
+.cam-row{display:grid;grid-template-columns:1fr 1.45fr;gap:6px;flex:1;overflow:hidden;}
 .cam-box{position:relative;border-radius:7px;overflow:hidden;background:#000;}
 .cam-box img{width:100%;height:100%;object-fit:cover;display:block;}
-.cam-tag{position:absolute;top:4px;left:4px;font-family:var(--mono);font-size:7px;letter-spacing:1px;background:rgba(0,0,0,.72);padding:2px 5px;border-radius:3px;color:var(--accent);border:1px solid var(--accent);}
-.cam-tag.ai{color:var(--purple);border-color:var(--purple);}
-.cam-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--muted);font-family:var(--mono);font-size:8px;}
-.chart-tabs{display:flex;gap:4px;}
-.chart-tab{font-family:var(--mono);font-size:8px;letter-spacing:1px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s;}
-.chart-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-.chart-grid,.ai-chart-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:7px;overflow:hidden;}
-.chart-box{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px 8px;display:flex;flex-direction:column;overflow:hidden;transition:background .25s,border-color .25s;}
-.chart-box h3{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;flex-shrink:0;}
-.chart-box .csub{font-family:var(--mono);font-size:7px;color:var(--muted);margin-bottom:2px;flex-shrink:0;}
+.cam-tag{
+  position:absolute;top:5px;left:5px;
+  font-family:var(--mono);font-size:7px;letter-spacing:1px;
+  background:rgba(0,0,0,.75);padding:2px 6px;border-radius:3px;
+  color:var(--accent);border:1px solid rgba(34,197,94,.4);
+}
+.cam-tag.ai{color:var(--purple);border-color:rgba(192,132,252,.4);}
+.cam-placeholder{
+  width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;color:var(--muted);
+  font-family:var(--mono);font-size:8px;letter-spacing:.5px;
+  background:repeating-linear-gradient(
+    45deg,#0d1710,#0d1710 10px,#0a1409 10px,#0a1409 20px
+  );
+}
+.cam-placeholder i{font-size:22px;opacity:.4;}
+
+/* AI result overlay */
+#aiSpinner{
+  display:none;position:absolute;inset:0;
+  background:rgba(0,0,0,.7);
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;
+}
+.spin-ring{
+  width:32px;height:32px;
+  border:2px solid var(--border);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin-label{font-family:var(--mono);font-size:8px;color:var(--accent);letter-spacing:1px;}
+
+#aiOverlay{
+  display:none;
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,transparent 100%);
+  padding:10px 10px 8px;pointer-events:none;
+}
+.ov-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px 6px;}
+.ov-cell{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.ov-k{font-family:var(--mono);font-size:7px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.8px;}
+.ov-v{font-family:var(--mono);font-size:10px;font-weight:700;}
+
+/* Status chip on image */
+#statusChip{
+  display:none;
+  position:absolute;top:5px;right:5px;
+  font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.5px;
+  padding:3px 8px;border-radius:4px;
+  background:rgba(0,0,0,.75);border:1px solid;
+}
+
+/* Bottom charts area */
+.charts-area{
+  display:flex;flex-direction:column;gap:5px;overflow:hidden;min-height:0;
+}
+.chart-tabs-row{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.tab-group{display:flex;gap:4px;}
+.ctab{
+  font-family:var(--mono);font-size:8px;letter-spacing:1px;
+  padding:3px 10px;border-radius:4px;
+  border:1px solid var(--border);background:transparent;
+  color:var(--muted);cursor:pointer;transition:all .2s;
+}
+.ctab.active{background:var(--accent);color:#000;border-color:var(--accent);}
+.chart-count{font-family:var(--mono);font-size:8px;color:var(--muted);}
+
+.chart-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;
+  gap:6px;flex:1;overflow:hidden;
+}
+.chart-box{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:8px;padding:7px 9px;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.chart-box h3{
+  font-family:var(--mono);font-size:7px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--muted);
+  margin-bottom:2px;flex-shrink:0;
+}
 .chart-box canvas{flex:1;min-height:0;}
 
-/* CONTROLS */
-.col-ctrl{display:flex;flex-direction:column;gap:6px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
-.col-ctrl::-webkit-scrollbar{width:4px;}
-.col-ctrl::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
-.ctrl-card{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:6px 8px;flex-shrink:0;transition:background .25s,border-color .25s;}
-.ctrl-lbl{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
-.dbtn{width:100%;padding:5px 0;border-radius:7px;border:1px solid var(--border);background:var(--panel);font-family:var(--mono);font-weight:700;font-size:9px;letter-spacing:1px;color:var(--muted);cursor:pointer;display:flex;justify-content:center;align-items:center;gap:4px;transition:filter .15s,transform .1s,background .25s;}
-.dbtn:hover:not(.dis):not(:disabled){filter:brightness(1.15);transform:scale(1.02);}
-.dbtn:disabled,.dbtn.dis{opacity:.3;cursor:not-allowed;transform:none !important;}
-.on-mode{background:linear-gradient(90deg,#059669,#10b981);border-color:#10b981;color:#fff;}
-.on-light{background:linear-gradient(90deg,#d97706,#f59e0b);border-color:#f59e0b;color:#fff;}
-.on-fan{background:linear-gradient(90deg,#0284c7,#38bdf8);border-color:#38bdf8;color:#fff;}
-.on-pump{background:linear-gradient(90deg,#065f46,#10b981);border-color:#10b981;color:#fff;}
-.on-spray{background:linear-gradient(90deg,#5b21b6,#a78bfa);border-color:#a78bfa;color:#fff;}
-.cap-btn{width:100%;padding:7px 0;border-radius:7px;border:none;font-family:var(--mono);font-weight:700;font-size:9px;letter-spacing:1px;color:#000;background:linear-gradient(90deg,#10b981,#38bdf8);cursor:pointer;display:flex;justify-content:center;align-items:center;gap:5px;transition:filter .15s,transform .1s;box-shadow:0 0 14px rgba(16,185,129,.3);}
-.cap-btn:hover:not(:disabled){filter:brightness(1.15);transform:scale(1.02);}
-.cap-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
-.cap-btn.busy{background:linear-gradient(90deg,#d97706,#f59e0b);animation:pblink 1s infinite;}
-@keyframes pblink{0%,100%{opacity:1}50%{opacity:.6}}
-.db-open-btn{width:100%;padding:6px 0;border-radius:7px;border:1px solid var(--accent);background:transparent;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;color:var(--accent);cursor:pointer;display:flex;justify-content:center;align-items:center;gap:5px;transition:all .15s;margin-top:6px;}
-.db-open-btn:hover{background:var(--accent);color:#fff;}
-.ref-btn{width:100%;padding:4px 0;margin-top:4px;border-radius:6px;border:1px solid var(--border);background:transparent;font-family:var(--mono);font-size:8px;letter-spacing:1px;color:var(--muted);cursor:pointer;display:flex;justify-content:center;align-items:center;gap:4px;transition:all .15s;}
-.ref-btn:hover{color:var(--accent);border-color:var(--accent);}
-.ai-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);}
-.ai-row:last-child{border-bottom:none;}
-.ai-lbl{font-family:var(--mono);font-size:8px;color:var(--muted);text-transform:uppercase;}
-.ai-val{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text);}
-.ok{color:var(--accent);}.warn{color:var(--warn);}.danger{color:var(--danger);}
-.fa-solid{font-size:9px;}
-.db-stat{display:flex;justify-content:space-between;align-items:center;padding:2px 0;}
-.db-stat span:first-child{font-family:var(--mono);font-size:8px;color:var(--muted);text-transform:uppercase;}
-.db-stat span:last-child{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--blue);}
+/* ═══════════════════════════════════════════
+   RIGHT COLUMN — CONTROLS
+═══════════════════════════════════════════ */
+.col-right{
+  display:flex;flex-direction:column;gap:6px;
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.col-right::-webkit-scrollbar{width:3px;}
+.col-right::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 
-/* ── MODAL ─────────────────────────────────────────────── */
-.modal-overlay{position:fixed;inset:0;background:var(--mbg);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s;}
+.ctrl-section{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:9px;padding:8px 10px;flex-shrink:0;
+}
+.section-title{
+  font-family:var(--mono);font-size:8px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--muted);margin-bottom:6px;
+  display:flex;align-items:center;gap:5px;
+}
+.section-title::before{
+  content:'';width:3px;height:3px;border-radius:50%;background:var(--accent);
+}
+
+/* Device toggle buttons */
+.dev-grid{display:flex;flex-direction:column;gap:4px;}
+.dev-btn{
+  width:100%;padding:6px 10px;border-radius:7px;
+  border:1px solid var(--border);background:var(--surface);
+  font-family:var(--mono);font-weight:700;font-size:9px;letter-spacing:.8px;
+  color:var(--muted);cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;
+  transition:all .15s;
+}
+.dev-btn:hover:not(:disabled):not(.dis){border-color:var(--accent);color:var(--accent);}
+.dev-btn:disabled,.dev-btn.dis{opacity:.35;cursor:not-allowed;}
+.dev-btn.on-light{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.4);color:var(--warn);}
+.dev-btn.on-fan  {background:rgba(56,189,248,.10);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.dev-btn.on-pump {background:rgba(34,197,94,.10); border-color:rgba(34,197,94,.3);color:var(--accent);}
+.dev-btn.on-spray{background:rgba(192,132,252,.10);border-color:rgba(192,132,252,.3);color:var(--purple);}
+.dev-btn.on-mode {background:rgba(34,197,94,.15); border-color:var(--accent);color:var(--accent);}
+
+.dev-label{display:flex;align-items:center;gap:6px;}
+.dev-indicator{width:6px;height:6px;border-radius:50%;background:var(--muted2);}
+.dev-btn.on-light .dev-indicator{background:var(--warn);box-shadow:0 0 5px var(--warn);}
+.dev-btn.on-fan   .dev-indicator{background:var(--blue);box-shadow:0 0 5px var(--blue);}
+.dev-btn.on-pump  .dev-indicator{background:var(--accent);box-shadow:0 0 5px var(--accent);}
+.dev-btn.on-spray .dev-indicator{background:var(--purple);box-shadow:0 0 5px var(--purple);}
+.dev-btn.on-mode  .dev-indicator{background:var(--accent);box-shadow:0 0 5px var(--accent);animation:pulse 1.5s infinite;}
+
+/* Mode super button */
+#modeBtn{
+  width:100%;padding:8px;border-radius:7px;
+  border:1px solid var(--border);background:var(--surface);
+  font-family:var(--mono);font-weight:700;font-size:9px;letter-spacing:1px;
+  color:var(--muted);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:6px;
+  transition:all .2s;margin-bottom:4px;
+}
+#modeBtn.on-mode{
+  background:linear-gradient(135deg,rgba(34,197,94,.15),rgba(22,163,74,.08));
+  border-color:var(--accent);color:var(--accent);
+  box-shadow:0 0 20px rgba(34,197,94,.12);
+}
+
+/* Capture button */
+.cap-btn{
+  width:100%;padding:9px;border-radius:8px;border:none;
+  font-family:var(--mono);font-weight:700;font-size:9px;letter-spacing:1.2px;
+  color:#000;
+  background:linear-gradient(135deg,#22c55e,#16a34a);
+  cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:6px;
+  transition:all .15s;
+  box-shadow:0 2px 16px rgba(34,197,94,.3);
+}
+.cap-btn:hover:not(:disabled){box-shadow:0 4px 24px rgba(34,197,94,.45);transform:translateY(-1px);}
+.cap-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.cap-btn.busy{
+  background:linear-gradient(135deg,#fbbf24,#d97706);
+  box-shadow:0 2px 16px rgba(251,191,36,.3);
+  animation:busyPulse 1s infinite;
+}
+@keyframes busyPulse{0%,100%{opacity:1}50%{opacity:.7}}
+
+/* Extra water button */
+.extra-btn{
+  width:100%;padding:6px;border-radius:7px;margin-top:4px;
+  border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.06);
+  font-family:var(--mono);font-size:8px;letter-spacing:.8px;font-weight:700;
+  color:var(--blue);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:5px;
+  transition:all .15s;
+}
+.extra-btn:hover{background:rgba(56,189,248,.12);border-color:var(--blue);}
+
+/* AI result panel */
+.ai-result-grid{display:flex;flex-direction:column;gap:3px;}
+.ai-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 0;border-bottom:1px solid var(--border2);
+}
+.ai-row:last-child{border-bottom:none;}
+.ai-k{font-family:var(--mono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.ai-v{font-family:var(--mono);font-size:10px;font-weight:700;}
+.ai-v.ok{color:var(--accent);}
+.ai-v.warn{color:var(--warn);}
+.ai-v.danger{color:var(--danger);}
+
+/* Scheduler status */
+.sched-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:3px 0;
+  font-family:var(--mono);font-size:8px;
+}
+.sched-time{color:var(--muted);}
+.sched-badge{
+  padding:1px 6px;border-radius:3px;font-size:7px;font-weight:700;
+  letter-spacing:.5px;
+}
+.sched-badge.done{background:rgba(34,197,94,.15);color:var(--accent);}
+.sched-badge.pending{background:rgba(74,107,85,.15);color:var(--muted);}
+
+/* DB stats */
+.db-stat-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:3px 0;
+}
+.db-stat-row span:first-child{font-family:var(--mono);font-size:8px;color:var(--muted);}
+.db-stat-row span:last-child{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--blue);}
+
+.outline-btn{
+  width:100%;padding:6px;border-radius:6px;margin-top:5px;
+  border:1px solid var(--accent);background:transparent;
+  font-family:var(--mono);font-size:8px;letter-spacing:.8px;font-weight:700;
+  color:var(--accent);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:5px;
+  transition:all .15s;
+}
+.outline-btn:hover{background:var(--accent);color:#000;}
+.ghost-btn{
+  width:100%;padding:5px;border-radius:6px;margin-top:3px;
+  border:1px solid var(--border);background:transparent;
+  font-family:var(--mono);font-size:8px;letter-spacing:.5px;
+  color:var(--muted);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:4px;
+  transition:all .15s;
+}
+.ghost-btn:hover{color:var(--accent);border-color:var(--accent);}
+
+/* Cooldown bar */
+.cooldown-track{height:3px;background:var(--border2);border-radius:2px;overflow:hidden;margin-top:4px;}
+.cooldown-fill{height:100%;background:var(--blue);border-radius:2px;transition:width .5s;}
+
+/* ═══════════════════════════════════════════
+   MODAL — DATABASE TABLE
+═══════════════════════════════════════════ */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center;
+  z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s;
+}
 .modal-overlay.open{opacity:1;pointer-events:all;}
-.modal-box{background:var(--mpanel);border:1px solid var(--mborder);border-radius:14px;width:93vw;max-width:960px;max-height:85vh;display:flex;flex-direction:column;transform:translateY(18px) scale(.97);transition:transform .22s,background .25s;overflow:hidden;}
+.modal-box{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  width:94vw;max-width:980px;max-height:86vh;
+  display:flex;flex-direction:column;
+  transform:translateY(16px) scale(.97);
+  transition:transform .22s;overflow:hidden;
+}
 .modal-overlay.open .modal-box{transform:none;}
-.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--mhead);border-bottom:1px solid var(--mborder);flex-shrink:0;}
+.modal-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;background:var(--card);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
 .modal-title{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1.5px;}
-.modal-meta{font-family:var(--mono);font-size:9px;color:var(--mmuted);margin-top:3px;}
-.modal-close{width:26px;height:26px;border-radius:6px;border:1px solid var(--mborder);background:transparent;color:var(--mmuted);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.modal-meta{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px;}
+.modal-close{
+  width:26px;height:26px;border-radius:6px;
+  border:1px solid var(--border);background:transparent;
+  color:var(--muted);cursor:pointer;font-size:13px;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
 .modal-close:hover{color:var(--danger);border-color:var(--danger);}
-.modal-toolbar{display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid var(--mborder);flex-shrink:0;background:var(--mpanel);flex-wrap:wrap;}
-.modal-search{flex:1;min-width:160px;padding:5px 10px;border-radius:7px;border:1px solid var(--mborder);background:var(--mhead);color:var(--mtext);font-family:var(--mono);font-size:9px;outline:none;transition:border-color .15s;}
+.modal-toolbar{
+  display:flex;align-items:center;gap:8px;padding:8px 18px;
+  border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap;
+}
+.modal-search{
+  flex:1;min-width:160px;padding:5px 10px;border-radius:6px;
+  border:1px solid var(--border);background:var(--card);
+  color:var(--text);font-family:var(--mono);font-size:9px;outline:none;
+  transition:border-color .15s;
+}
 .modal-search:focus{border-color:var(--accent);}
-.modal-search::placeholder{color:var(--mmuted);}
-.modal-select{padding:5px 8px;border-radius:6px;border:1px solid var(--mborder);background:var(--mhead);color:var(--mtext);font-family:var(--mono);font-size:9px;outline:none;cursor:pointer;}
-.modal-select:focus{border-color:var(--accent);}
-.modal-count{font-family:var(--mono);font-size:9px;color:var(--mmuted);white-space:nowrap;margin-left:auto;}
-.tool-btn{padding:5px 11px;border-radius:6px;border:1px solid var(--mborder);background:transparent;color:var(--mmuted);font-family:var(--mono);font-size:8px;letter-spacing:1px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;}
+.modal-search::placeholder{color:var(--muted);}
+.modal-select{
+  padding:5px 8px;border-radius:6px;border:1px solid var(--border);
+  background:var(--card);color:var(--text);
+  font-family:var(--mono);font-size:9px;outline:none;cursor:pointer;
+}
+.modal-count{font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;margin-left:auto;}
+.tool-btn{
+  padding:5px 11px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--muted);
+  font-family:var(--mono);font-size:8px;letter-spacing:1px;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;
+}
 .tool-btn:hover{color:var(--accent);border-color:var(--accent);}
 .tool-btn.primary{border-color:var(--accent);color:var(--accent);}
-.tool-btn.primary:hover{background:var(--accent);color:#fff;}
-.modal-body{flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--mborder) transparent;}
-.modal-body::-webkit-scrollbar{width:5px;height:5px;}
-.modal-body::-webkit-scrollbar-thumb{background:var(--mborder);border-radius:3px;}
+.tool-btn.primary:hover{background:var(--accent);color:#000;}
+.modal-body{flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.modal-body::-webkit-scrollbar{width:4px;height:4px;}
+.modal-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 
-/* TABLE */
 table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px;}
-.dbt thead{position:sticky;top:0;z-index:2;background:var(--mhead);}
-.dbt th{padding:8px 13px;text-align:left;text-transform:uppercase;letter-spacing:1.2px;color:var(--mmuted);font-size:8px;font-weight:700;border-bottom:1px solid var(--mborder);white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s;}
+.dbt thead{position:sticky;top:0;z-index:2;background:var(--card);}
+.dbt th{
+  padding:8px 12px;text-align:left;text-transform:uppercase;
+  letter-spacing:1px;color:var(--muted);font-size:8px;font-weight:700;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+  cursor:pointer;user-select:none;transition:color .15s;
+}
 .dbt th:hover{color:var(--accent);}
 .dbt th .sa{margin-left:4px;opacity:.3;}
 .dbt th.sorted .sa{opacity:1;color:var(--accent);}
-.dbt tbody tr{border-bottom:1px solid var(--mborder);transition:background .1s;}
-.dbt tbody tr:nth-child(even){background:var(--malt);}
-.dbt tbody tr:hover{background:var(--mhov);}
-.dbt td{padding:6px 13px;color:var(--mtext);white-space:nowrap;}
-.dbt td.dim{color:var(--mmuted);}
+.dbt tbody tr{border-bottom:1px solid var(--border2);transition:background .1s;}
+.dbt tbody tr:nth-child(even){background:rgba(255,255,255,.015);}
+.dbt tbody tr:hover{background:rgba(34,197,94,.05);}
+.dbt td{padding:6px 12px;color:var(--text);white-space:nowrap;}
+.dbt td.dim{color:var(--muted);}
 .dbt td.g{color:var(--accent);font-weight:700;}
 .dbt td.y{color:var(--warn);font-weight:700;}
-.dbt td.r{color:var(--danger);font-weight:700;}
-.badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:8px;font-weight:700;}
-.badge.lo{background:rgba(16,185,129,.15);color:#10b981;}
-.badge.mi{background:rgba(245,158,11,.15);color:#f59e0b;}
-.badge.hi{background:rgba(239,68,68,.15);color:#ef4444;}
-
-/* FOOTER / PAGER */
-.modal-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;border-top:1px solid var(--mborder);background:var(--mhead);flex-shrink:0;}
-.modal-footer-txt{font-family:var(--mono);font-size:8px;color:var(--mmuted);}
-.pager{display:flex;gap:4px;flex-wrap:wrap;}
-.pg{padding:3px 10px;border-radius:5px;border:1px solid var(--mborder);background:transparent;color:var(--mmuted);font-family:var(--mono);font-size:8px;cursor:pointer;transition:all .15s;}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:8px;font-weight:700;}
+.badge.lo{background:rgba(34,197,94,.12);color:var(--accent);}
+.badge.mi{background:rgba(251,191,36,.12);color:var(--warn);}
+.badge.hi{background:rgba(248,113,113,.12);color:var(--danger);}
+.modal-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 18px;border-top:1px solid var(--border);
+  background:var(--card);flex-shrink:0;
+}
+.modal-footer-txt{font-family:var(--mono);font-size:8px;color:var(--muted);}
+.pager{display:flex;gap:3px;flex-wrap:wrap;}
+.pg{
+  padding:3px 9px;border-radius:4px;border:1px solid var(--border);
+  background:transparent;color:var(--muted);
+  font-family:var(--mono);font-size:8px;cursor:pointer;transition:all .15s;
+}
 .pg:hover:not(:disabled){color:var(--accent);border-color:var(--accent);}
 .pg:disabled{opacity:.3;cursor:not-allowed;}
-.pg.on{background:var(--accent);color:#fff;border-color:var(--accent);}
-
-/* SPINNER */
-.modal-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;gap:12px;color:var(--mmuted);font-family:var(--mono);font-size:9px;}
-.spin{width:26px;height:26px;border:2px solid var(--mborder);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;}
-@keyframes sp{to{transform:rotate(360deg);}}
+.pg.on{background:var(--accent);color:#000;border-color:var(--accent);}
+.modal-loading{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;height:200px;gap:12px;
+  color:var(--muted);font-family:var(--mono);font-size:9px;
+}
 </style>
 </head>
 <body>
 
+<!-- ALERT BANNER -->
+<div id="alertBanner">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  <span id="alertText">Cảnh báo</span>
+  <button onclick="dismissAlert()" style="margin-left:auto;background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;">✕</button>
+</div>
+
 <!-- HEADER -->
 <div class="header">
   <div class="hdr-left">
-    <div class="live-dot"></div>
-    <h1>🌱 SMART GREENHOUSE</h1>
+    <div class="hdr-logo">
+      <div class="pulse-ring"></div>
+      🌿 SMART GREENHOUSE
+    </div>
   </div>
   <div class="hdr-right">
-    <span class="fb-badge" id="fbBadge">☁ RTDB —</span>
-    <button class="hdr-btn" onclick="openModal()" title="Xem dữ liệu Firebase"><i class="fa-solid fa-database"></i></button>
+    <span class="badge-fb" id="fbBadge">☁ RTDB —</span>
+    <button class="hdr-btn" onclick="openModal()" title="Dữ liệu Firebase"><i class="fa-solid fa-database"></i></button>
     <button class="hdr-btn" onclick="toggleTheme()" title="Đổi giao diện"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
     <div class="hdr-clock" id="clock">--:--:--</div>
   </div>
 </div>
 
-<!-- GRID -->
-<div class="root">
+<!-- ROOT GRID -->
+<div class="root" id="rootGrid">
 
-  <!-- GAUGES -->
-  <div class="col-gauges">
-    <div class="sensor"><h4>Temp</h4><canvas id="gaugeTemp"></canvas><div class="val" id="temp">--°C</div></div>
-    <div class="sensor"><h4>Humidity</h4><canvas id="gaugeHum"></canvas><div class="val" id="hum">--%</div></div>
-    <div class="sensor"><h4>Soil</h4><canvas id="gaugeSoil"></canvas><div class="val" id="soil">--%</div></div>
-    <div class="sensor"><h4>Lux</h4><canvas id="gaugeLux"></canvas><div class="val" id="lux">--lx</div></div>
+  <!-- ════ LEFT — SENSORS ════ -->
+  <div class="col-left">
+
+    <!-- VPD -->
+    <div class="vpd-badge">
+      <div>
+        <div class="vpd-label">VPD</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:1px;" id="vpd-status">—</div>
+      </div>
+      <div class="vpd-val" id="vpd-val">— kPa</div>
+    </div>
+
+    <!-- Temperature -->
+    <div class="sensor-card" id="card-temp">
+      <div class="sc-top">
+        <div class="sc-icon"><i class="fa-solid fa-temperature-half"></i></div>
+        <span class="sc-name">Nhiệt độ</span>
+      </div>
+      <div>
+        <div class="sc-val" id="temp">--</div>
+        <div class="sc-sub">°C</div>
+      </div>
+      <div class="sc-bar-track"><div class="sc-bar-fill" id="bar-temp" style="width:0%;background:var(--accent);"></div></div>
+      <canvas class="sc-spark" id="spark-temp"></canvas>
+    </div>
+
+    <!-- Humidity -->
+    <div class="sensor-card" id="card-hum">
+      <div class="sc-top">
+        <div class="sc-icon blue"><i class="fa-solid fa-droplet"></i></div>
+        <span class="sc-name">Độ ẩm KK</span>
+      </div>
+      <div>
+        <div class="sc-val" id="hum">--</div>
+        <div class="sc-sub">%</div>
+      </div>
+      <div class="sc-bar-track"><div class="sc-bar-fill" id="bar-hum" style="width:0%;background:var(--blue);"></div></div>
+      <canvas class="sc-spark" id="spark-hum"></canvas>
+    </div>
+
+    <!-- Soil -->
+    <div class="sensor-card" id="card-soil">
+      <div class="sc-top">
+        <div class="sc-icon warn"><i class="fa-solid fa-seedling"></i></div>
+        <span class="sc-name">Độ ẩm đất</span>
+      </div>
+      <div>
+        <div class="sc-val" id="soil">--</div>
+        <div class="sc-sub">%</div>
+      </div>
+      <div class="sc-bar-track"><div class="sc-bar-fill" id="bar-soil" style="width:0%;background:var(--warn);"></div></div>
+      <canvas class="sc-spark" id="spark-soil"></canvas>
+    </div>
+
+    <!-- Lux -->
+    <div class="sensor-card" id="card-lux">
+      <div class="sc-top">
+        <div class="sc-icon purple"><i class="fa-solid fa-sun"></i></div>
+        <span class="sc-name">Ánh sáng</span>
+      </div>
+      <div>
+        <div class="sc-val" id="lux">--</div>
+        <div class="sc-sub">lux</div>
+      </div>
+      <div class="sc-bar-track"><div class="sc-bar-fill" id="bar-lux" style="width:0%;background:var(--purple);"></div></div>
+      <canvas class="sc-spark" id="spark-lux"></canvas>
+    </div>
+
   </div>
 
-  <!-- CENTER -->
+  <!-- ════ CENTER ════ -->
   <div class="col-center">
+
+    <!-- Camera Panel -->
     <div class="cam-panel">
-      <div class="cam-panel-title">📷 Camera</div>
+      <div class="cam-panel-title">
+        <div class="panel-label"><i class="fa-solid fa-video"></i> Camera &amp; AI Result</div>
+        <span id="capTime" style="font-family:var(--mono);font-size:8px;color:var(--muted);"></span>
+      </div>
       <div class="cam-row">
+        <!-- Live -->
         <div class="cam-box">
           <img id="liveStream" src="http://localhost:5000/video_feed" alt="Live">
           <span class="cam-tag">● LIVE</span>
         </div>
-        <div class="cam-box">
-          <div class="cam-placeholder" id="camPlaceholder"><i class="fa-solid fa-robot" style="font-size:20px"></i><span>Chưa có ảnh AI</span></div>
+        <!-- AI Result -->
+        <div class="cam-box" id="aiBox">
+          <div class="cam-placeholder" id="camPlaceholder">
+            <i class="fa-solid fa-robot"></i>
+            <span>Chưa có ảnh phân tích</span>
+            <span style="opacity:.5;font-size:7px;">Bấm CHỤP &amp; PHÂN TÍCH</span>
+          </div>
           <img id="resultImg" src="" alt="AI" style="display:none;width:100%;height:100%;object-fit:cover;">
+          <div id="aiSpinner">
+            <div class="spin-ring"></div>
+            <span class="spin-label">ĐANG PHÂN TÍCH...</span>
+          </div>
+          <div id="aiOverlay">
+            <div class="ov-grid">
+              <div class="ov-cell"><span class="ov-k">Status</span><span class="ov-v" id="ov-status" style="color:var(--accent);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Stress</span><span class="ov-v" id="ov-stress" style="color:var(--accent);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Pest/Wilt</span><span class="ov-v" id="ov-pw" style="color:var(--warn);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Tưới</span><span class="ov-v" id="ov-irr" style="color:var(--blue);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Phun</span><span class="ov-v" id="ov-spray" style="color:var(--purple);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Lá</span><span class="ov-v" id="ov-leaf" style="color:var(--text);">--</span></div>
+            </div>
+          </div>
+          <div id="statusChip"></div>
           <span class="cam-tag ai">✦ AI RESULT</span>
         </div>
       </div>
     </div>
 
-    <div style="display:flex;flex-direction:column;gap:5px;overflow:hidden;min-height:0;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;padding:0 2px;">
-        <div class="chart-tabs">
-          <button class="chart-tab active" id="tabSensor" onclick="switchTab('sensor')">📡 Sensor Live</button>
-          <button class="chart-tab"        id="tabAI"     onclick="switchTab('ai')">🤖 AI History</button>
+    <!-- Charts Area -->
+    <div class="charts-area">
+      <div class="chart-tabs-row">
+        <div class="tab-group">
+          <button class="ctab active" id="tabSensor" onclick="switchTab('sensor')">📡 Sensor Live</button>
+          <button class="ctab" id="tabAI" onclick="switchTab('ai')">🤖 AI History</button>
         </div>
-        <span id="aiRowCount" style="font-family:var(--mono);font-size:8px;color:var(--muted);"></span>
+        <span class="chart-count" id="aiRowCount"></span>
       </div>
       <div class="chart-grid" id="sensorCharts">
-        <div class="chart-box"><h3>Temp</h3><canvas id="tempChart"></canvas></div>
-        <div class="chart-box"><h3>Humidity</h3><canvas id="humChart"></canvas></div>
-        <div class="chart-box"><h3>Soil</h3><canvas id="soilChart"></canvas></div>
-        <div class="chart-box"><h3>Lux</h3><canvas id="luxChart"></canvas></div>
+        <div class="chart-box"><h3>Nhiệt độ (°C)</h3><canvas id="tempChart"></canvas></div>
+        <div class="chart-box"><h3>Độ ẩm không khí (%)</h3><canvas id="humChart"></canvas></div>
+        <div class="chart-box"><h3>Độ ẩm đất (%)</h3><canvas id="soilChart"></canvas></div>
+        <div class="chart-box"><h3>Ánh sáng (lux)</h3><canvas id="luxChart"></canvas></div>
       </div>
-      <div class="ai-chart-grid" id="aiCharts" style="display:none;">
-        <div class="chart-box"><h3>Pest Severity</h3><div class="csub">RTDB · 200 mẫu gần nhất</div><canvas id="pestChart"></canvas></div>
-        <div class="chart-box"><h3>Wilt Severity</h3><div class="csub">RTDB · 200 mẫu gần nhất</div><canvas id="wiltChart"></canvas></div>
-        <div class="chart-box"><h3>Irrigation (s)</h3><div class="csub">AI predicted</div><canvas id="irrChart"></canvas></div>
-        <div class="chart-box"><h3>Spray (s)</h3><div class="csub">AI predicted</div><canvas id="sprayHistChart"></canvas></div>
+      <div class="chart-grid" id="aiCharts" style="display:none;">
+        <div class="chart-box"><h3>Pest Severity</h3><canvas id="pestChart"></canvas></div>
+        <div class="chart-box"><h3>Wilt Severity</h3><canvas id="wiltChart"></canvas></div>
+        <div class="chart-box"><h3>Irrigation (s)</h3><canvas id="irrChart"></canvas></div>
+        <div class="chart-box"><h3>Spray (s)</h3><canvas id="sprayHistChart"></canvas></div>
       </div>
     </div>
+
   </div>
 
-  <!-- CONTROLS -->
-  <div class="col-ctrl">
-    <div class="ctrl-card"><div class="ctrl-lbl">Mode</div><button id="modeBtn" class="dbtn" onclick="toggleMode()">NORMAL <i class="fa-solid fa-hand"></i></button></div>
-    <div class="ctrl-card"><div class="ctrl-lbl">Light</div><button id="lightBtn" class="dbtn" onclick="toggle(4)">OFF <i class="fa-solid fa-sun"></i></button></div>
-    <div class="ctrl-card"><div class="ctrl-lbl">Fan</div><button id="fanBtn" class="dbtn" onclick="toggle(5)">OFF <i class="fa-solid fa-fan"></i></button></div>
-    <div class="ctrl-card"><div class="ctrl-lbl">Pump</div><button id="pumpBtn" class="dbtn" onclick="toggle(6)">OFF <i class="fa-solid fa-droplet"></i></button></div>
-    <div class="ctrl-card"><div class="ctrl-lbl">Spray</div><button id="sprayBtn" class="dbtn" onclick="toggle(8)">OFF <i class="fa-solid fa-spray-can"></i></button></div>
-    <div class="ctrl-card">
-      <div class="ctrl-lbl">AI Analysis</div>
-      <button id="captureBtn" class="cap-btn" onclick="capture()"><i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH</button>
+  <!-- ════ RIGHT — CONTROLS ════ -->
+  <div class="col-right">
+
+    <!-- Mode -->
+    <div class="ctrl-section">
+      <div class="section-title">Chế độ hệ thống</div>
+      <button id="modeBtn" onclick="toggleMode()">
+        <i class="fa-solid fa-hand"></i> MANUAL MODE
+      </button>
     </div>
-    <div class="ctrl-card">
-      <div class="ctrl-lbl">Kết quả AI</div>
-      <div class="ai-row"><span class="ai-lbl">Status</span><span class="ai-val" id="r-status">--</span></div>
-      <div class="ai-row"><span class="ai-lbl">Pest</span>  <span class="ai-val" id="r-pest">--</span></div>
-      <div class="ai-row"><span class="ai-lbl">Wilt</span>  <span class="ai-val" id="r-wilt">--</span></div>
-      <div class="ai-row"><span class="ai-lbl">Stress</span><span class="ai-val" id="r-stress">--</span></div>
-      <div class="ai-row"><span class="ai-lbl">Tưới</span>  <span class="ai-val" id="r-irr">--</span></div>
-      <div class="ai-row"><span class="ai-lbl">Phun</span>  <span class="ai-val" id="r-spray">--</span></div>
+
+    <!-- Devices -->
+    <div class="ctrl-section">
+      <div class="section-title">Thiết bị</div>
+      <div class="dev-grid">
+        <button id="lightBtn" class="dev-btn" onclick="toggle(4)">
+          <div class="dev-label"><div class="dev-indicator"></div> ĐÈN CHIẾU SÁNG</div>
+          <i class="fa-solid fa-sun" style="font-size:10px;"></i>
+        </button>
+        <button id="fanBtn" class="dev-btn" onclick="toggle(5)">
+          <div class="dev-label"><div class="dev-indicator"></div> QUẠT LÀM MÁT</div>
+          <i class="fa-solid fa-fan" style="font-size:10px;"></i>
+        </button>
+        <button id="pumpBtn" class="dev-btn" onclick="toggle(6)">
+          <div class="dev-label"><div class="dev-indicator"></div> BƠM TƯỚI</div>
+          <i class="fa-solid fa-droplet" style="font-size:10px;"></i>
+        </button>
+        <button id="sprayBtn" class="dev-btn" onclick="toggle(8)">
+          <div class="dev-label"><div class="dev-indicator"></div> PHUN SƯƠNG</div>
+          <i class="fa-solid fa-spray-can-sparkles" style="font-size:10px;"></i>
+        </button>
+      </div>
     </div>
-    <div class="ctrl-card">
-      <div class="ctrl-lbl">☁ Database</div>
-      <div class="db-stat"><span>Records</span><span id="db-count">--</span></div>
-      <div class="db-stat"><span>Last sync</span><span id="db-last">--</span></div>
-      <div class="db-stat"><span>Source</span><span id="db-source" style="color:var(--accent)">--</span></div>
-      <button class="db-open-btn" onclick="openModal()"><i class="fa-solid fa-table"></i> XEM DỮ LIỆU</button>
-      <button class="ref-btn" onclick="loadAIHistory()"><i class="fa-solid fa-rotate"></i> Tải lại biểu đồ</button>
+
+    <!-- AI Capture -->
+    <div class="ctrl-section">
+      <div class="section-title">Phân tích AI</div>
+      <button id="captureBtn" class="cap-btn" onclick="capture()">
+        <i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH
+      </button>
+      <button class="extra-btn" onclick="extraWater()">
+        <i class="fa-solid fa-faucet-drip"></i> TƯỚI BỔ SUNG NGAY
+      </button>
     </div>
-    <div style="height:4px;flex-shrink:0"></div>
+
+    <!-- AI Results -->
+    <div class="ctrl-section">
+      <div class="section-title">Kết quả AI</div>
+      <div class="ai-result-grid">
+        <div class="ai-row"><span class="ai-k">Trạng thái</span><span class="ai-v ok" id="r-status">--</span></div>
+        <div class="ai-row"><span class="ai-k">Sâu bệnh</span><span class="ai-v" id="r-pest">--</span></div>
+        <div class="ai-row"><span class="ai-k">Héo lá</span><span class="ai-v" id="r-wilt">--</span></div>
+        <div class="ai-row"><span class="ai-k">Stress</span><span class="ai-v" id="r-stress">--</span></div>
+        <div class="ai-row"><span class="ai-k">Tưới (s)</span><span class="ai-v" id="r-irr">--</span></div>
+        <div class="ai-row"><span class="ai-k">Phun (s)</span><span class="ai-v" id="r-spray">--</span></div>
+      </div>
+    </div>
+
+    <!-- Scheduler Status -->
+    <div class="ctrl-section">
+      <div class="section-title">Lịch tưới hôm nay</div>
+      <div id="schedList">
+        <div class="sched-row"><span class="sched-time">Đang tải...</span></div>
+      </div>
+      <div style="margin-top:6px;font-family:var(--mono);font-size:8px;color:var(--muted);">
+        AI chụp tiếp: <span id="nextAiSlot" style="color:var(--blue);">--</span>
+      </div>
+      <div style="margin-top:4px;font-family:var(--mono);font-size:7px;color:var(--muted);">Cooldown tưới bổ sung</div>
+      <div class="cooldown-track"><div class="cooldown-fill" id="cooldownBar" style="width:0%;"></div></div>
+      <div style="font-family:var(--mono);font-size:7px;color:var(--muted);text-align:right;margin-top:2px;" id="cooldownText">—</div>
+    </div>
+
+    <!-- Database -->
+    <div class="ctrl-section">
+      <div class="section-title">☁ Firebase Database</div>
+      <div class="db-stat-row"><span>Bản ghi</span><span id="db-count">--</span></div>
+      <div class="db-stat-row"><span>Cập nhật</span><span id="db-last">--</span></div>
+      <div class="db-stat-row"><span>Nguồn</span><span id="db-source" style="color:var(--accent);">--</span></div>
+      <button class="outline-btn" onclick="openModal()"><i class="fa-solid fa-table-list" style="font-size:9px;"></i> XEM DỮ LIỆU</button>
+      <button class="ghost-btn" onclick="loadAIHistory()"><i class="fa-solid fa-rotate" style="font-size:8px;"></i> Tải lại biểu đồ</button>
+    </div>
+
+    <div style="height:2px;flex-shrink:0;"></div>
   </div>
 </div>
 
-<!-- ═══ MODAL ═════════════════════════════════════════════ -->
+<!-- ═══ MODAL ═══════════════════════════════════════════ -->
 <div class="modal-overlay" id="modalOverlay" onclick="bgClick(event)">
   <div class="modal-box">
     <div class="modal-hdr">
       <div>
-        <div class="modal-title"><i class="fa-solid fa-database" style="font-size:10px;margin-right:7px;"></i>FIREBASE REALTIME DATABASE — AI DATASET</div>
+        <div class="modal-title"><i class="fa-solid fa-database" style="font-size:9px;margin-right:7px;"></i>FIREBASE REALTIME DATABASE — AI DATASET</div>
         <div class="modal-meta" id="modalMeta">Đang kết nối...</div>
       </div>
       <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
     </div>
-
     <div class="modal-toolbar">
       <input class="modal-search" id="mSearch" type="text" placeholder="🔍  Tìm kiếm..." oninput="filterRows()">
       <select class="modal-select" id="mFilter" onchange="filterRows()">
@@ -287,11 +873,9 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
       <button class="tool-btn primary" onclick="refreshModal()"><i class="fa-solid fa-rotate" style="font-size:8px;"></i> Làm mới</button>
       <button class="tool-btn" onclick="exportCSV()"><i class="fa-solid fa-download" style="font-size:8px;"></i> Xuất CSV</button>
     </div>
-
     <div class="modal-body" id="modalBody">
-      <div class="modal-loading"><div class="spin"></div><span>Đang tải từ Realtime Database...</span></div>
+      <div class="modal-loading"><div class="spin-ring"></div><span>Đang tải từ Realtime Database...</span></div>
     </div>
-
     <div class="modal-footer">
       <span class="modal-footer-txt" id="mPageInfo">--</span>
       <div class="pager" id="mPager"></div>
@@ -301,37 +885,24 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
 
 <script>
 /* ══════════════════════════════════════════════════
-   CONFIG — chỉ cần đổi FIREBASE_DB_URL
+   CONFIG
 ══════════════════════════════════════════════════ */
 const FIREBASE_DB_URL = "https://greenhouse-31c64-default-rtdb.asia-southeast1.firebasedatabase.app";
-const FB_NODE         = "ai_dataset";   // phải khớp với FB_NODE trong test.py
+const FB_NODE   = "ai_dataset";
+const TOKEN     = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4";
+const BASE      = "https://blynk.cloud/external/api";
+const FLASK     = "http://localhost:5000";
 
-const TOKEN = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4";
-const BASE  = "https://blynk.cloud/external/api";
-const FLASK = "http://localhost:5000";   
-const PI_FLASK = "http://10.11.58.34:5000";
-
-/* ── Hàm đọc Realtime Database qua REST ─────────── */
+/* ── Firebase helpers ────────────────────────── */
 async function fbGet(node, limitLast = 0) {
   let url = `${FIREBASE_DB_URL}/${node}.json`;
   if (limitLast > 0) url += `?orderBy="$key"&limitToLast=${limitLast}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Firebase HTTP ${r.status}`);
-  return r.json();   // trả về object { pushKey: {...}, ... }
+  return r.json();
 }
 
-/* kiểm tra kết nối ngay khi load */
-(async function checkFB() {
-  const b = document.getElementById("fbBadge");
-  try {
-    await fbGet(".info/connected");
-    b.textContent = "☁ RTDB OK"; b.classList.add("ok");
-  } catch {
-    b.textContent = "☁ RTDB ERR"; b.classList.add("err");
-  }
-})();
-
-/* ── THEME ──────────────────────────────────────── */
+/* ── THEME ───────────────────────────────────── */
 let isDark = true;
 function toggleTheme() {
   isDark = !isDark;
@@ -340,347 +911,520 @@ function toggleTheme() {
   updateChartColors();
   localStorage.setItem("gh_theme", isDark ? "dark" : "light");
 }
-(function () {
-  if (localStorage.getItem("gh_theme") === "light") {
+(function(){
+  if(localStorage.getItem("gh_theme") === "light"){
     isDark = false; document.body.classList.add("light");
     document.getElementById("themeIcon").className = "fa-solid fa-sun";
   }
 })();
-const gcc = () => isDark ? { grid: "#0d1624", tick: "#4a6375" } : { grid: "#e2e8f0", tick: "#94a3b8" };
-const applyCC = c => { const { grid, tick } = gcc(); c.options.scales.x.ticks.color = tick; c.options.scales.x.grid.color = grid; c.options.scales.y.ticks.color = tick; c.options.scales.y.grid.color = grid; c.update(); };
-function updateChartColors() { [cT, cH, cS, cL].forEach(applyCC); if (pestChart) [pestChart, wiltChart, irrChart, sprayHistChart].forEach(applyCC); }
 
-/* ── CLOCK ──────────────────────────────────────── */
-setInterval(() => document.getElementById("clock").textContent = new Date().toLocaleTimeString("vi-VN"), 1000);
+/* ── CLOCK ───────────────────────────────────── */
+setInterval(()=> document.getElementById("clock").textContent = new Date().toLocaleTimeString("vi-VN"), 1000);
 document.getElementById("clock").textContent = new Date().toLocaleTimeString("vi-VN");
 
-/* ── GAUGES ─────────────────────────────────────── */
-function mkG(id) {
-  const g = new Gauge(document.getElementById(id));
-  g.setOptions({ angle: -0.2, lineWidth: 0.15, pointer: { length: 0.7, strokeWidth: 0.02 }, staticZones: [{ strokeStyle: "#10b981", min: 0, max: 40 }, { strokeStyle: "#f59e0b", min: 40, max: 70 }, { strokeStyle: "#ef4444", min: 70, max: 100 }], limitMax: false, limitMin: false, highDpiSupport: true });
-  return g;
-}
-const gT = mkG("gaugeTemp"), gH = mkG("gaugeHum"), gS = mkG("gaugeSoil"), gL = mkG("gaugeLux");
-
-/* ── SENSOR CHARTS ──────────────────────────────── */
-let lb = [], tD = [], hD = [], sD = [], lD = [];
-function mkC(id, data, color) {
-  const { grid, tick } = gcc();
-  return new Chart(document.getElementById(id), { type: "line", data: { labels: lb, datasets: [{ data, borderColor: color, backgroundColor: color + "22", tension: 0.4, fill: true, pointRadius: 0, borderWidth: 1.5 }] }, options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: tick, font: { size: 7 }, maxTicksLimit: 5 }, grid: { color: grid } }, y: { ticks: { color: tick, font: { size: 7 }, maxTicksLimit: 4 }, grid: { color: grid } } }, responsive: true, maintainAspectRatio: false, animation: { duration: 200 } } });
-}
-const cT = mkC("tempChart", tD, "#10b981"), cH = mkC("humChart", hD, "#38bdf8");
-const cS = mkC("soilChart", sD, "#f59e0b"), cL = mkC("luxChart", lD, "#a78bfa");
-function pushC(t, h, s, l) {
-  lb.push(new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-  tD.push(t); hD.push(h); sD.push(s); lD.push(l);
-  if (lb.length > 20) [lb, tD, hD, sD, lD].forEach(a => a.shift());
-  [cT, cH, cS, cL].forEach(c => c.update());
-}
-
-/* ── AI HISTORY CHARTS ──────────────────────────── */
-let pestChart = null, wiltChart = null, irrChart = null, sprayHistChart = null;
-function mkAI(id, color) {
-  const { grid, tick } = gcc();
-  return new Chart(document.getElementById(id), { type: "line", data: { labels: [], datasets: [{ data: [], borderColor: color, backgroundColor: color + "18", tension: 0.3, fill: true, pointRadius: 1.5, pointHoverRadius: 4, borderWidth: 1.5 }] }, options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: tick, font: { size: 6 }, maxTicksLimit: 6 }, grid: { color: grid } }, y: { ticks: { color: tick, font: { size: 7 }, maxTicksLimit: 4 }, grid: { color: grid } } }, responsive: true, maintainAspectRatio: false, animation: { duration: 300 } } });
-}
-function initAICharts() { if (pestChart) return; pestChart = mkAI("pestChart", "#ef4444"); wiltChart = mkAI("wiltChart", "#f59e0b"); irrChart = mkAI("irrChart", "#38bdf8"); sprayHistChart = mkAI("sprayHistChart", "#a78bfa"); }
-
-/* đọc RTDB và vẽ chart */
-async function loadAIHistory() {
-  initAICharts();
-  document.getElementById("db-source").textContent = "loading…";
-  try {
-    const raw = await fbGet(FB_NODE, 200);   // lấy 200 key cuối
-    if (raw && typeof raw === "object") {
-      const rows = Object.values(raw);
-      const labels = rows.map((r, i) => {
-        const ts = String(r.timestamp || "");
-        const m = ts.match(/(\d{2})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-        return m ? `${m[4]}:${m[5]}` : `#${i + 1}`;
-      });
-      const fill = (c, f) => { c.data.labels = labels; c.data.datasets[0].data = rows.map(r => parseFloat(r[f]) || 0); c.update(); };
-      fill(pestChart, "pest"); fill(wiltChart, "wilt"); fill(irrChart, "irrigation"); fill(sprayHistChart, "spray");
-      document.getElementById("db-count").textContent = rows.length;
-      document.getElementById("db-last").textContent = new Date().toLocaleTimeString("vi-VN");
-      document.getElementById("db-source").textContent = "Realtime DB";
-      document.getElementById("aiRowCount").textContent = rows.length + " records";
-      document.getElementById("fbBadge").textContent = "☁ RTDB OK";
-      document.getElementById("fbBadge").className = "fb-badge ok";
-      return;
-    }
-  } catch (e) {
-    console.warn("RTDB chart load fail:", e);
-    document.getElementById("fbBadge").className = "fb-badge err";
-    document.getElementById("fbBadge").textContent = "☁ RTDB ERR";
-  }
-  /* fallback Flask */
-  try {
-    const rows = await (await fetch(`${FLASK}/csv_data`)).json();
-    if (Array.isArray(rows) && rows.length) {
-      const labels = rows.map((_, i) => `#${i + 1}`);
-      const fill = (c, f) => { c.data.labels = labels; c.data.datasets[0].data = rows.map(r => parseFloat(r[f]) || 0); c.update(); };
-      fill(pestChart, "pest"); fill(wiltChart, "wilt"); fill(irrChart, "irrigation"); fill(sprayHistChart, "spray");
-      document.getElementById("db-count").textContent = rows.length;
-      document.getElementById("db-source").textContent = "Flask CSV";
-    } else { document.getElementById("db-source").textContent = "No data"; }
-  } catch { document.getElementById("db-source").textContent = "Unavailable"; }
-}
-
-/* ── TAB ────────────────────────────────────────── */
-let currentTab = "sensor";
-function switchTab(tab) {
-  currentTab = tab;
-  document.getElementById("tabSensor").classList.toggle("active", tab === "sensor");
-  document.getElementById("tabAI").classList.toggle("active", tab === "ai");
-  document.getElementById("sensorCharts").style.display = tab === "sensor" ? "grid" : "none";
-  document.getElementById("aiCharts").style.display = tab === "ai" ? "grid" : "none";
-  if (tab === "ai") loadAIHistory();
-  else document.getElementById("aiRowCount").textContent = "";
-}
-
-/* ── BLYNK ──────────────────────────────────────── */
-const bg = async p => (await fetch(`${BASE}/get?token=${TOKEN}&V${p}`)).text();
-const bs = async (p, v) => fetch(`${BASE}/update?token=${TOKEN}&V${p}=${v}`);
-async function updSensors() {
-  const [t, h, s, l] = await Promise.all([bg(0), bg(1), bg(2), bg(3)]);
-  const tf = parseFloat(t), hf = parseFloat(h), sf = parseFloat(s), lf = parseFloat(l);
-  document.getElementById("temp").textContent = isNaN(tf) ? "--°C" : tf.toFixed(1) + "°C";
-  document.getElementById("hum").textContent = isNaN(hf) ? "--%"  : hf.toFixed(1) + "%";
-  document.getElementById("soil").textContent = isNaN(sf) ? "--%"  : sf.toFixed(1) + "%";
-  document.getElementById("lux").textContent = isNaN(lf) ? "--lx" : lf.toFixed(0) + "lx";
-  if (!isNaN(tf)) { gT.set(tf); gH.set(hf); gS.set(sf); gL.set(Math.min(lf / 10000 * 100, 100)); pushC(tf, hf, sf, lf); }
-}
-const CFG = { lightBtn: { on: "on-light", i: "fa-sun" }, fanBtn: { on: "on-fan", i: "fa-fan" }, pumpBtn: { on: "on-pump", i: "fa-droplet" }, sprayBtn: { on: "on-spray", i: "fa-spray-can" } };
-function applyBtn(id, val) { const b = document.getElementById(id), c = CFG[id], on = val === "1"; b.className = "dbtn" + (on ? " " + c.on : ""); b.innerHTML = `${on ? "ON" : "OFF"} <i class="fa-solid ${c.i}"></i>`; b.disabled = isAuto; if (isAuto) b.classList.add("dis"); }
-let isAuto = false;
-async function updBtns() {
-  const [l, f, p, sp, m] = await Promise.all([bg(4), bg(5), bg(6), bg(8), bg(9)]);
-  isAuto = m === "1";
-  const mb = document.getElementById("modeBtn");
-  mb.className = "dbtn" + (isAuto ? " on-mode" : "");
-  mb.innerHTML = isAuto ? 'AUTO <i class="fa-solid fa-robot"></i>' : 'NORMAL <i class="fa-solid fa-hand"></i>';
-  applyBtn("lightBtn", l); applyBtn("fanBtn", f); applyBtn("pumpBtn", p); applyBtn("sprayBtn", sp);
-}
-async function toggle(pin) { if (isAuto) return; await bs(pin, (await bg(pin)) === "1" ? 0 : 1); }
-async function toggleMode() { await bs(9, (await bg(9)) === "1" ? 0 : 1); }
-
-/* ── CAPTURE ────────────────────────────────────── */
-let isInferring = false;
-async function capture() {
-  if (isInferring) return; isInferring = true;
-  const btn = document.getElementById("captureBtn");
-  btn.disabled = true; btn.classList.add("busy");
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ĐANG PHÂN TÍCH...';
-  try {
-    const d = await (await fetch(`${FLASK}/capture`, { method: "POST" })).json();
-    if (d.status === "busy") { alert("Đang phân tích!"); resetCap(); return; }
-    pollRes();
-  } catch { alert("⚠️ Không kết nối Flask!"); resetCap(); }
-}
-function pollRes() {
-  const iv = setInterval(async () => {
-    try { const s = await (await fetch(`${FLASK}/status`)).json(); if (!s.inferring && s.has_result) { clearInterval(iv); await showRes(); resetCap(); } }
-    catch { clearInterval(iv); resetCap(); }
-  }, 1500);
-}
-async function showRes() {
-  const d = await (await fetch(`${FLASK}/result`)).json();
-  document.getElementById("camPlaceholder").style.display = "none";
-  const img = document.getElementById("resultImg");
-  img.src = `${FLASK}/latest_result?t=${Date.now()}`; img.style.display = "block";
-  const stress = d.stress_index ?? 0, sc = stress > 0.35 ? "danger" : stress > 0.05 ? "warn" : "ok";
-  const st = d.status || "", stc = st.includes("nặng") ? "danger" : (st.includes("nhẹ") || st.includes("trung")) ? "warn" : "ok";
-  document.getElementById("r-status").textContent = st || "--"; document.getElementById("r-status").className = `ai-val ${stc}`;
-  document.getElementById("r-pest").textContent = d.pest_count ?? "--";
-  document.getElementById("r-wilt").textContent = d.wilt_count ?? "--";
-  document.getElementById("r-stress").textContent = stress.toFixed(3); document.getElementById("r-stress").className = `ai-val ${sc}`;
-  document.getElementById("r-irr").textContent = (d.irrigation ?? "--") + "s";
-  document.getElementById("r-spray").textContent = (d.spray ?? "--") + "s";
-  if (currentTab === "ai") setTimeout(loadAIHistory, 2000);
-  if (document.getElementById("modalOverlay").classList.contains("open")) { allRows = []; setTimeout(fetchModalData, 2500); }
-}
-function resetCap() { isInferring = false; const btn = document.getElementById("captureBtn"); btn.disabled = false; btn.classList.remove("busy"); btn.innerHTML = '<i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH'; }
+/* ── Firebase badge ──────────────────────────── */
+(async function checkFB(){
+  const b = document.getElementById("fbBadge");
+  try { await fbGet(".info/connected"); b.textContent="☁ RTDB OK"; b.classList.add("ok"); }
+  catch { b.textContent="☁ RTDB ERR"; b.classList.add("err"); }
+})();
 
 /* ══════════════════════════════════════════════════
-   MODAL — REALTIME DATABASE TABLE
+   SPARKLINES (mini line charts inside sensor cards)
 ══════════════════════════════════════════════════ */
-let allRows = [], filteredRows = [], curPage = 1;
-const PG = 25;
+const sparkData = { temp:[], hum:[], soil:[], lux:[] };
+const sparkCharts = {};
 
-async function openModal() {
+function mkSpark(id, color) {
+  const ctx = document.getElementById(id).getContext("2d");
+  return new Chart(ctx, {
+    type: "line",
+    data: { labels: [], datasets: [{ data: [], borderColor: color, backgroundColor: "transparent", tension: 0.4, pointRadius: 0, borderWidth: 1.5 }] },
+    options: {
+      plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+      scales:{ x:{display:false}, y:{display:false} },
+      responsive:true, maintainAspectRatio:false, animation:{duration:200}
+    }
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  sparkCharts.temp = mkSpark("spark-temp","#22c55e");
+  sparkCharts.hum  = mkSpark("spark-hum", "#38bdf8");
+  sparkCharts.soil = mkSpark("spark-soil","#fbbf24");
+  sparkCharts.lux  = mkSpark("spark-lux", "#c084fc");
+});
+
+function pushSpark(key, val) {
+  const arr = sparkData[key];
+  arr.push(val);
+  if (arr.length > 30) arr.shift();
+  const c = sparkCharts[key];
+  if (!c) return;
+  c.data.labels = arr.map((_,i)=>i);
+  c.data.datasets[0].data = arr;
+  c.update();
+}
+
+/* ══════════════════════════════════════════════════
+   SENSOR CHARTS (4 charts in bottom area)
+══════════════════════════════════════════════════ */
+const gcc = () => isDark ? {grid:"#0a1a0e",tick:"#4a6b55"} : {grid:"#e0f0e5",tick:"#5a8a6a"};
+const applyCC = c => {
+  const {grid,tick} = gcc();
+  c.options.scales.x.ticks.color = tick; c.options.scales.x.grid.color = grid;
+  c.options.scales.y.ticks.color = tick; c.options.scales.y.grid.color = grid;
+  c.update();
+};
+function updateChartColors() {
+  [cT,cH,cS,cL].forEach(applyCC);
+  if(pestChart)[pestChart,wiltChart,irrChart,sprayHistChart].forEach(applyCC);
+}
+
+let lb=[],tD=[],hD=[],sD=[],lD=[];
+function mkC(id,data,color){
+  const {grid,tick} = gcc();
+  return new Chart(document.getElementById(id), {
+    type:"line",
+    data:{ labels:lb, datasets:[{ data, borderColor:color, backgroundColor:color+"22", tension:0.4, fill:true, pointRadius:0, borderWidth:1.5 }] },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:tick,font:{size:7},maxTicksLimit:5},grid:{color:grid}},
+        y:{ticks:{color:tick,font:{size:7},maxTicksLimit:4},grid:{color:grid}}
+      },
+      responsive:true, maintainAspectRatio:false, animation:{duration:200}
+    }
+  });
+}
+const cT=mkC("tempChart",tD,"#22c55e"), cH=mkC("humChart",hD,"#38bdf8");
+const cS=mkC("soilChart",sD,"#fbbf24"), cL=mkC("luxChart",lD,"#c084fc");
+
+function pushC(t,h,s,l){
+  lb.push(new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",second:"2-digit"}));
+  tD.push(t); hD.push(h); sD.push(s); lD.push(l);
+  if(lb.length>30)[lb,tD,hD,sD,lD].forEach(a=>a.shift());
+  [cT,cH,cS,cL].forEach(c=>c.update());
+}
+
+/* ══════════════════════════════════════════════════
+   AI HISTORY CHARTS
+══════════════════════════════════════════════════ */
+let pestChart=null, wiltChart=null, irrChart=null, sprayHistChart=null;
+function mkAI(id,color){
+  const {grid,tick} = gcc();
+  return new Chart(document.getElementById(id),{
+    type:"line",
+    data:{labels:[],datasets:[{data:[],borderColor:color,backgroundColor:color+"18",tension:0.3,fill:true,pointRadius:1.5,pointHoverRadius:4,borderWidth:1.5}]},
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:tick,font:{size:6},maxTicksLimit:6},grid:{color:grid}},
+        y:{ticks:{color:tick,font:{size:7},maxTicksLimit:4},grid:{color:grid}}
+      },
+      responsive:true, maintainAspectRatio:false, animation:{duration:300}
+    }
+  });
+}
+function initAICharts(){
+  if(pestChart) return;
+  pestChart=mkAI("pestChart","#f87171"); wiltChart=mkAI("wiltChart","#fbbf24");
+  irrChart=mkAI("irrChart","#38bdf8"); sprayHistChart=mkAI("sprayHistChart","#c084fc");
+}
+async function loadAIHistory(){
+  initAICharts();
+  document.getElementById("db-source").textContent="loading…";
+  try {
+    const raw = await fbGet(FB_NODE, 200);
+    if(raw && typeof raw==="object"){
+      const rows = Object.values(raw);
+      const labels = rows.map((r,i)=>{
+        const ts=String(r.timestamp||"");
+        const m=ts.match(/(\d{2})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+        return m?`${m[4]}:${m[5]}`:`#${i+1}`;
+      });
+      const fill=(c,f)=>{c.data.labels=labels;c.data.datasets[0].data=rows.map(r=>parseFloat(r[f])||0);c.update();};
+      fill(pestChart,"pest"); fill(wiltChart,"wilt"); fill(irrChart,"irrigation"); fill(sprayHistChart,"spray");
+      document.getElementById("db-count").textContent=rows.length;
+      document.getElementById("db-last").textContent=new Date().toLocaleTimeString("vi-VN");
+      document.getElementById("db-source").textContent="Realtime DB";
+      document.getElementById("aiRowCount").textContent=rows.length+" records";
+      document.getElementById("fbBadge").textContent="☁ RTDB OK";
+      document.getElementById("fbBadge").className="badge-fb ok";
+      return;
+    }
+  } catch(e){
+    console.warn("RTDB chart fail:",e);
+    document.getElementById("fbBadge").className="badge-fb err";
+    document.getElementById("fbBadge").textContent="☁ RTDB ERR";
+  }
+  try {
+    const rows = await (await fetch(`${FLASK}/csv_data`)).json();
+    if(Array.isArray(rows)&&rows.length){
+      const labels=rows.map((_,i)=>`#${i+1}`);
+      const fill=(c,f)=>{c.data.labels=labels;c.data.datasets[0].data=rows.map(r=>parseFloat(r[f])||0);c.update();};
+      fill(pestChart,"pest"); fill(wiltChart,"wilt"); fill(irrChart,"irrigation"); fill(sprayHistChart,"spray");
+      document.getElementById("db-count").textContent=rows.length;
+      document.getElementById("db-source").textContent="Flask CSV";
+    } else { document.getElementById("db-source").textContent="No data"; }
+  } catch { document.getElementById("db-source").textContent="Unavailable"; }
+}
+
+/* ── TAB SWITCH ──────────────────────────────── */
+let currentTab="sensor";
+function switchTab(tab){
+  currentTab=tab;
+  document.getElementById("tabSensor").classList.toggle("active",tab==="sensor");
+  document.getElementById("tabAI").classList.toggle("active",tab==="ai");
+  document.getElementById("sensorCharts").style.display=tab==="sensor"?"grid":"none";
+  document.getElementById("aiCharts").style.display=tab==="ai"?"grid":"none";
+  if(tab==="ai") loadAIHistory();
+  else document.getElementById("aiRowCount").textContent="";
+}
+
+/* ══════════════════════════════════════════════════
+   ALERT SYSTEM
+══════════════════════════════════════════════════ */
+const alerts = [];
+function triggerAlert(msg) {
+  alerts.push(msg);
+  document.getElementById("alertText").textContent = alerts[alerts.length-1];
+  document.getElementById("alertBanner").classList.add("show");
+  document.getElementById("rootGrid").classList.add("alert-open");
+}
+function dismissAlert() {
+  alerts.length=0;
+  document.getElementById("alertBanner").classList.remove("show");
+  document.getElementById("rootGrid").classList.remove("alert-open");
+}
+
+/* ══════════════════════════════════════════════════
+   BLYNK
+══════════════════════════════════════════════════ */
+const bg = async p => (await fetch(`${BASE}/get?token=${TOKEN}&V${p}`)).text();
+const bs = async (p,v) => fetch(`${BASE}/update?token=${TOKEN}&V${p}=${v}`);
+
+async function updSensors() {
+  const [t,h,s,l] = await Promise.all([bg(0),bg(1),bg(2),bg(3)]);
+  const tf=parseFloat(t), hf=parseFloat(h), sf=parseFloat(s), lf=parseFloat(l);
+
+  if(!isNaN(tf)){
+    document.getElementById("temp").textContent=tf.toFixed(1);
+    document.getElementById("bar-temp").style.width=Math.min(tf/50*100,100)+"%";
+    pushSpark("temp",tf); pushC(tf,hf,sf,lf);
+    // state
+    const tc=document.getElementById("card-temp");
+    tc.classList.remove("warn-state","danger-state");
+    if(tf>32) tc.classList.add("danger-state");
+    else if(tf>28) tc.classList.add("warn-state");
+  }
+  if(!isNaN(hf)){
+    document.getElementById("hum").textContent=hf.toFixed(1);
+    document.getElementById("bar-hum").style.width=hf+"%";
+    pushSpark("hum",hf);
+  }
+  if(!isNaN(sf)){
+    document.getElementById("soil").textContent=sf.toFixed(1);
+    document.getElementById("bar-soil").style.width=sf+"%";
+    pushSpark("soil",sf);
+    const sc=document.getElementById("card-soil");
+    sc.classList.remove("warn-state","danger-state");
+    if(sf<35) sc.classList.add("danger-state");
+    else if(sf<50) sc.classList.add("warn-state");
+  }
+  if(!isNaN(lf)){
+    document.getElementById("lux").textContent=lf.toFixed(0);
+    document.getElementById("bar-lux").style.width=Math.min(lf/10000*100,100)+"%";
+    pushSpark("lux",lf);
+  }
+
+  /* VPD calc client-side */
+  if(!isNaN(tf)&&!isNaN(hf)){
+    const es=0.6108*Math.exp(17.27*tf/(tf+237.3));
+    const vpd=Math.max(0,es*(1-hf/100));
+    document.getElementById("vpd-val").textContent=vpd.toFixed(2)+" kPa";
+    const vs=document.getElementById("vpd-status");
+    if(vpd>1.5){vs.textContent="⚠ Bốc hơi cao";vs.style.color="var(--danger)";}
+    else if(vpd<0.5){vs.textContent="✓ Độ ẩm tốt";vs.style.color="var(--accent)";}
+    else{vs.textContent="→ Bình thường";vs.style.color="var(--muted)";}
+  }
+
+  /* Alerts */
+  if(!isNaN(sf)&&sf<35) triggerAlert(`⚠ ĐỘ ẨM ĐẤT THẤP: ${sf.toFixed(0)}% — Cần tưới ngay!`);
+  if(!isNaN(tf)&&tf>35) triggerAlert(`🌡 NHIỆT ĐỘ CAO: ${tf.toFixed(1)}°C — Kiểm tra hệ thống làm mát!`);
+}
+
+/* Device buttons */
+const CFG = {
+  lightBtn:{onClass:"on-light",icon:"fa-sun"},
+  fanBtn:  {onClass:"on-fan",  icon:"fa-fan"},
+  pumpBtn: {onClass:"on-pump", icon:"fa-droplet"},
+  sprayBtn:{onClass:"on-spray",icon:"fa-spray-can-sparkles"},
+};
+function applyBtn(id, val) {
+  const b=document.getElementById(id), c=CFG[id], on=val==="1";
+  b.className="dev-btn"+(on?" "+c.onClass:"");
+  const ind=b.querySelector(".dev-indicator");
+  // indicator state handled by CSS via class
+  b.disabled=isAuto; if(isAuto) b.classList.add("dis");
+}
+let isAuto=false;
+async function updBtns() {
+  const [l,f,p,sp,m] = await Promise.all([bg(4),bg(5),bg(6),bg(8),bg(9)]);
+  isAuto=m==="1";
+  const mb=document.getElementById("modeBtn");
+  mb.className=isAuto?"on-mode":"";
+  mb.innerHTML=isAuto
+    ?'<i class="fa-solid fa-robot"></i> AUTO MODE — ĐANG CHẠY'
+    :'<i class="fa-solid fa-hand"></i> MANUAL MODE';
+  applyBtn("lightBtn",l); applyBtn("fanBtn",f);
+  applyBtn("pumpBtn",p); applyBtn("sprayBtn",sp);
+}
+async function toggle(pin){ if(isAuto) return; await bs(pin,(await bg(pin))==="1"?0:1); }
+async function toggleMode(){ await bs(9,(await bg(9))==="1"?0:1); }
+
+/* ══════════════════════════════════════════════════
+   CAPTURE (synchronous)
+══════════════════════════════════════════════════ */
+let isInferring=false;
+async function capture(){
+  if(isInferring) return;
+  isInferring=true;
+  const btn=document.getElementById("captureBtn");
+  btn.disabled=true; btn.classList.add("busy");
+  btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> ĐANG PHÂN TÍCH...';
+  document.getElementById("camPlaceholder").style.display="none";
+  document.getElementById("aiSpinner").style.display="flex";
+  try {
+    const res=await fetch(`${FLASK}/capture`,{method:"POST"});
+    if(res.status===409){alert("⚠️ Server đang bận, thử lại sau!");resetCap();return;}
+    if(!res.ok){const e=await res.json().catch(()=>({}));alert("❌ Lỗi: "+(e.message||res.statusText));resetCap();return;}
+    const d=await res.json();
+    showRes(d);
+  } catch(e){
+    alert("⚠️ Không kết nối được Flask!\n"+e);
+    resetCap();
+  }
+}
+
+function showRes(d){
+  document.getElementById("aiSpinner").style.display="none";
+  const img=document.getElementById("resultImg");
+  img.src=`${FLASK}/latest_result?t=${Date.now()}`;
+  img.style.display="block";
+
+  const stress=d.stress_index??0;
+  const sc=stress>0.35?"var(--danger)":stress>0.05?"var(--warn)":"var(--accent)";
+  const st=d.plant_status||d.status||"--";
+  const stc=st.includes("nặng")?"var(--danger)":(st.includes("nhẹ")||st.includes("trung"))?"var(--warn)":"var(--accent)";
+
+  // overlay
+  document.getElementById("ov-status").textContent=st;
+  document.getElementById("ov-status").style.color=stc;
+  document.getElementById("ov-stress").textContent=stress.toFixed(3);
+  document.getElementById("ov-stress").style.color=sc;
+  document.getElementById("ov-pw").textContent=`${d.pest_count??0}/${d.wilt_count??0}`;
+  document.getElementById("ov-irr").textContent=(d.irrigation??"-")+"s";
+  document.getElementById("ov-spray").textContent=(d.spray??"-")+"s";
+  document.getElementById("ov-leaf").textContent=d.leaf_count??"-";
+  document.getElementById("aiOverlay").style.display="block";
+  document.getElementById("capTime").textContent=d.time||"";
+
+  // status chip
+  const chip=document.getElementById("statusChip");
+  chip.style.display="block";
+  chip.textContent=st;
+  chip.style.borderColor=stc.replace("var(","").replace(")","");
+  chip.style.color=stc;
+
+  // right panel
+  document.getElementById("r-status").textContent=st;
+  document.getElementById("r-status").className="ai-v "+(st.includes("nặng")?"danger":st.includes("nhẹ")||st.includes("trung")?"warn":"ok");
+  document.getElementById("r-pest").textContent=d.pest_count??"-";
+  document.getElementById("r-wilt").textContent=d.wilt_count??"-";
+  document.getElementById("r-stress").textContent=stress.toFixed(3);
+  document.getElementById("r-stress").className="ai-v "+(stress>0.35?"danger":stress>0.05?"warn":"ok");
+  document.getElementById("r-irr").textContent=(d.irrigation??"-")+"s";
+  document.getElementById("r-spray").textContent=(d.spray??"-")+"s";
+
+  // alert if stressed
+  if(stress>0.35) triggerAlert(`🌿 AI PHÁT HIỆN STRESS NẶNG (${stress.toFixed(3)}) — ${st}`);
+
+  if(currentTab==="ai") setTimeout(loadAIHistory,2000);
+  if(document.getElementById("modalOverlay").classList.contains("open")){allRows=[];setTimeout(fetchModalData,2500);}
+  resetCap();
+}
+
+function resetCap(){
+  isInferring=false;
+  const btn=document.getElementById("captureBtn");
+  btn.disabled=false; btn.classList.remove("busy");
+  btn.innerHTML='<i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH';
+  document.getElementById("aiSpinner").style.display="none";
+}
+function pollRes(){}  // stub
+
+/* ── Extra water ─────────────────────────────── */
+async function extraWater(){
+  try {
+    const r=await fetch(`${FLASK}/extra_water_now`,{method:"POST"});
+    const d=await r.json();
+    if(r.status===409) alert("⚠️ Bơm đang chạy!");
+    else alert(`💧 ${d.message}`);
+  } catch(e){ alert("Không kết nối Flask: "+e); }
+}
+
+/* ── Scheduler status ────────────────────────── */
+async function updScheduler(){
+  try {
+    const d=await (await fetch(`${FLASK}/scheduler_status`)).json();
+    // scheduled watering list
+    let html="";
+    (d.scheduled_watering||[]).forEach(s=>{
+      html+=`<div class="sched-row">
+        <span class="sched-time"><i class="fa-regular fa-clock" style="font-size:8px;margin-right:4px;"></i>${s.time}</span>
+        <span class="sched-badge ${s.done_today?"done":"pending"}">${s.done_today?"ĐÃ TƯỚI":"CHỜ"}</span>
+      </div>`;
+    });
+    document.getElementById("schedList").innerHTML=html||"<div style='font-family:var(--mono);font-size:8px;color:var(--muted);'>Không có lịch</div>";
+    document.getElementById("nextAiSlot").textContent=d.next_ai_capture_slot||"--";
+    // cooldown bar
+    const remaining=d.pump_cooldown_remaining||0;
+    const pct=Math.min(100,remaining/300*100);
+    document.getElementById("cooldownBar").style.width=pct+"%";
+    document.getElementById("cooldownText").textContent=remaining>0?`${Math.round(remaining)}s còn lại`:"Sẵn sàng";
+  } catch(e){ /* Flask có thể chưa có route này */ }
+}
+
+/* ══════════════════════════════════════════════════
+   MODAL — DATABASE TABLE
+══════════════════════════════════════════════════ */
+let allRows=[], filteredRows=[], curPage=1;
+const PG=25;
+async function openModal(){
   document.getElementById("modalOverlay").classList.add("open");
-  document.body.style.overflow = "hidden";
-  if (allRows.length === 0) await fetchModalData();
+  document.body.style.overflow="hidden";
+  if(allRows.length===0) await fetchModalData();
   else renderTable();
 }
-function closeModal() { document.getElementById("modalOverlay").classList.remove("open"); document.body.style.overflow = ""; }
-function bgClick(e) { if (e.target === document.getElementById("modalOverlay")) closeModal(); }
-async function refreshModal() {
-  allRows = [];
-  document.getElementById("modalBody").innerHTML = '<div class="modal-loading"><div class="spin"></div><span>Đang làm mới...</span></div>';
+function closeModal(){ document.getElementById("modalOverlay").classList.remove("open"); document.body.style.overflow=""; }
+function bgClick(e){ if(e.target===document.getElementById("modalOverlay")) closeModal(); }
+async function refreshModal(){
+  allRows=[];
+  document.getElementById("modalBody").innerHTML='<div class="modal-loading"><div class="spin-ring"></div><span>Đang làm mới...</span></div>';
   await fetchModalData();
 }
-
-async function fetchModalData() {
-  document.getElementById("modalBody").innerHTML = '<div class="modal-loading"><div class="spin"></div><span>Đang đọc Firebase Realtime Database...</span></div>';
+async function fetchModalData(){
+  document.getElementById("modalBody").innerHTML='<div class="modal-loading"><div class="spin-ring"></div><span>Đang đọc Firebase Realtime Database...</span></div>';
   try {
-    /* Realtime DB REST: GET /ai_dataset.json — trả object {pushKey: {…}, …} */
-    const raw = await fbGet(FB_NODE);
-    if (raw && typeof raw === "object") {
-      /* chuyển thành mảng, mới nhất lên đầu */
-      allRows = Object.entries(raw)
-        .sort((a, b) => String(b[0]).localeCompare(String(a[0])))  // sort theo key (push id hoặc row_000xxx)
-        .map(([key, val]) => ({ _key: key, ...val }));
-      document.getElementById("modalMeta").textContent =
-        `${allRows.length} bản ghi  ·  ${new Date().toLocaleTimeString("vi-VN")}  ·  Realtime Database`;
-      filteredRows = [...allRows]; curPage = 1; renderTable();
-      document.getElementById("fbBadge").textContent = "☁ RTDB OK";
-      document.getElementById("fbBadge").className = "fb-badge ok";
+    const raw=await fbGet(FB_NODE);
+    if(raw&&typeof raw==="object"){
+      allRows=Object.entries(raw)
+        .sort((a,b)=>String(b[0]).localeCompare(String(a[0])))
+        .map(([key,val])=>({_key:key,...val}));
+      document.getElementById("modalMeta").textContent=`${allRows.length} bản ghi · ${new Date().toLocaleTimeString("vi-VN")} · Realtime Database`;
+      filteredRows=[...allRows]; curPage=1; renderTable();
+      document.getElementById("fbBadge").textContent="☁ RTDB OK";
+      document.getElementById("fbBadge").className="badge-fb ok";
       return;
     }
     throw new Error("empty");
-  } catch (e) {
-    console.warn("Modal RTDB fail:", e);
-    document.getElementById("fbBadge").className = "fb-badge err";
-    document.getElementById("fbBadge").textContent = "☁ RTDB ERR";
-    /* fallback Flask */
+  } catch(e){
+    console.warn("Modal RTDB fail:",e);
+    document.getElementById("fbBadge").className="badge-fb err";
+    document.getElementById("fbBadge").textContent="☁ RTDB ERR";
     try {
-      const rows = await (await fetch(`${FLASK}/csv_data`)).json();
-      allRows = [...rows].reverse().map((r, i) => ({ _key: `csv_${i}`, ...r }));
-      document.getElementById("modalMeta").textContent =
-        `${allRows.length} bản ghi  ·  ${new Date().toLocaleTimeString("vi-VN")}  ·  Flask CSV (fallback)`;
-      filteredRows = [...allRows]; curPage = 1; renderTable();
+      const rows=await (await fetch(`${FLASK}/csv_data`)).json();
+      allRows=[...rows].reverse().map((r,i)=>({_key:`csv_${i}`,...r}));
+      document.getElementById("modalMeta").textContent=`${allRows.length} bản ghi · ${new Date().toLocaleTimeString("vi-VN")} · Flask CSV (fallback)`;
+      filteredRows=[...allRows]; curPage=1; renderTable();
     } catch {
-      document.getElementById("modalBody").innerHTML =
-        '<div class="modal-loading"><span style="color:var(--danger)">❌ Không thể tải dữ liệu. Kiểm tra FIREBASE_DB_URL hoặc Flask.</span></div>';
+      document.getElementById("modalBody").innerHTML='<div class="modal-loading"><span style="color:var(--danger)">❌ Không thể tải dữ liệu.</span></div>';
     }
   }
 }
-
-/* sort */
-let sCol = "", sDir = 1;
-function sortBy(col) {
-  sDir = sCol === col ? -sDir : 1; sCol = col;
-  filteredRows.sort((a, b) => ((parseFloat(a[col]) || 0) - (parseFloat(b[col]) || 0)) * sDir);
-  curPage = 1; renderTable();
-}
-
-/* filter */
-function filterRows() {
-  const q = document.getElementById("mSearch").value.toLowerCase();
-  const f = document.getElementById("mFilter").value;
-  filteredRows = allRows.filter(r => {
-    const mq = !q || Object.values(r).some(v => String(v).toLowerCase().includes(q));
-    let mf = true;
-    if (f === "pest")  mf = (parseFloat(r.pest)  || 0) > 0.3;
-    if (f === "wilt")  mf = (parseFloat(r.wilt)  || 0) > 0.3;
-    if (f === "irr")   mf = (parseFloat(r.irrigation) || 0) > 5;
-    if (f === "spray") mf = (parseFloat(r.spray) || 0) > 5;
-    return mq && mf;
+let sCol="",sDir=1;
+function sortBy(col){ sDir=sCol===col?-sDir:1; sCol=col; filteredRows.sort((a,b)=>((parseFloat(a[col])||0)-(parseFloat(b[col])||0))*sDir); curPage=1; renderTable(); }
+function filterRows(){
+  const q=document.getElementById("mSearch").value.toLowerCase();
+  const f=document.getElementById("mFilter").value;
+  filteredRows=allRows.filter(r=>{
+    const mq=!q||Object.values(r).some(v=>String(v).toLowerCase().includes(q));
+    let mf=true;
+    if(f==="pest") mf=(parseFloat(r.pest)||0)>0.3;
+    if(f==="wilt") mf=(parseFloat(r.wilt)||0)>0.3;
+    if(f==="irr")  mf=(parseFloat(r.irrigation)||0)>5;
+    if(f==="spray")mf=(parseFloat(r.spray)||0)>5;
+    return mq&&mf;
   });
-  curPage = 1; renderTable();
+  curPage=1; renderTable();
 }
-
-/* badge */
-function badge(v) {
-  const n = parseFloat(v) || 0;
-  if (n > 0.3) return `<span class="badge hi">${n.toFixed(3)}</span>`;
-  if (n > 0.1) return `<span class="badge mi">${n.toFixed(3)}</span>`;
-  return `<span class="badge lo">${n.toFixed(3)}</span>`;
-}
-
-/* format timestamp */
-function fmtTs(ts) {
-  if (!ts) return "--";
-  const s = String(ts);
-  const m = s.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-  if (m) return `${m[3]}/${m[2]}/${m[1].slice(2)} ${m[4]}:${m[5]}:${m[6]}`;
-  return s.slice(0, 19); // fallback
-}
-
-/* sort arrow */
-function sa(col) { return `<span class="sa">${sCol !== col ? "↕" : sDir > 0 ? "↑" : "↓"}</span>`; }
-
-/* render */
-function renderTable() {
-  const total = filteredRows.length, pages = Math.max(1, Math.ceil(total / PG));
-  if (curPage > pages) curPage = pages;
-  const st = (curPage - 1) * PG, en = Math.min(st + PG, total), slice = filteredRows.slice(st, en);
-  document.getElementById("mCount").textContent = total + " bản ghi";
-  document.getElementById("mPageInfo").textContent = `Trang ${curPage}/${pages}  ·  ${st + 1}–${en} / ${total}`;
-
-  const cols = [
-    { k: "timestamp", l: "Thời gian",   s: false },
-    { k: "temp",      l: "Temp °C",     s: true  },
-    { k: "hum",       l: "Hum %",       s: true  },
-    { k: "soil",      l: "Soil %",      s: true  },
-    { k: "lux",       l: "Lux",         s: true  },
-    { k: "pest",      l: "Pest sev",    s: true  },
-    { k: "wilt",      l: "Wilt sev",    s: true  },
-    { k: "irrigation",l: "Tưới (s)",    s: true  },
-    { k: "spray",     l: "Phun (s)",    s: true  },
+function badge(v){ const n=parseFloat(v)||0; if(n>0.3) return `<span class="badge hi">${n.toFixed(3)}</span>`; if(n>0.1) return `<span class="badge mi">${n.toFixed(3)}</span>`; return `<span class="badge lo">${n.toFixed(3)}</span>`; }
+function fmtTs(ts){ if(!ts) return "--"; const s=String(ts); const m=s.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/); if(m) return `${m[3]}/${m[2]}/${m[1].slice(2)} ${m[4]}:${m[5]}:${m[6]}`; return s.slice(0,19); }
+function sa(col){ return `<span class="sa">${sCol!==col?"↕":sDir>0?"↑":"↓"}</span>`; }
+function renderTable(){
+  const total=filteredRows.length, pages=Math.max(1,Math.ceil(total/PG));
+  if(curPage>pages) curPage=pages;
+  const st=(curPage-1)*PG, en=Math.min(st+PG,total), slice=filteredRows.slice(st,en);
+  document.getElementById("mCount").textContent=total+" bản ghi";
+  document.getElementById("mPageInfo").textContent=`Trang ${curPage}/${pages} · ${st+1}–${en} / ${total}`;
+  const cols=[
+    {k:"timestamp",l:"Thời gian",s:false},{k:"temp",l:"Temp °C",s:true},{k:"hum",l:"Hum %",s:true},
+    {k:"soil",l:"Soil %",s:true},{k:"lux",l:"Lux",s:true},{k:"pest",l:"Pest sev",s:true},
+    {k:"wilt",l:"Wilt sev",s:true},{k:"irrigation",l:"Tưới (s)",s:true},{k:"spray",l:"Phun (s)",s:true},
   ];
-
-  let h = `<table class="dbt"><thead><tr><th style="padding-left:14px;width:38px;">#</th>`;
-  cols.forEach(c => h += `<th class="${sCol === c.k ? "sorted" : ""}" ${c.s ? `onclick="sortBy('${c.k}')"` : ""}>${c.l}${c.s ? sa(c.k) : ""}</th>`);
-  h += `</tr></thead><tbody>`;
-
-  if (!slice.length) {
-    h += `<tr><td colspan="${cols.length + 1}" style="text-align:center;padding:28px;color:var(--mmuted);">Không có dữ liệu phù hợp</td></tr>`;
+  let h=`<table class="dbt"><thead><tr><th style="padding-left:14px;width:36px;">#</th>`;
+  cols.forEach(c=>h+=`<th class="${sCol===c.k?"sorted":""}" ${c.s?`onclick="sortBy('${c.k}')"`:""}>${c.l}${c.s?sa(c.k):""}</th>`);
+  h+=`</tr></thead><tbody>`;
+  if(!slice.length){
+    h+=`<tr><td colspan="${cols.length+1}" style="text-align:center;padding:28px;color:var(--muted);">Không có dữ liệu phù hợp</td></tr>`;
   } else {
-    slice.forEach((r, i) => {
-      const iv = parseFloat(r.irrigation) || 0, sv = parseFloat(r.spray) || 0;
-      h += `<tr>
-        <td class="dim" style="padding-left:14px;">${st + i + 1}</td>
+    slice.forEach((r,i)=>{
+      const iv=parseFloat(r.irrigation)||0, sv=parseFloat(r.spray)||0;
+      h+=`<tr>
+        <td class="dim" style="padding-left:14px;">${st+i+1}</td>
         <td class="dim">${fmtTs(r.timestamp)}</td>
-        <td>${r.temp != null ? parseFloat(r.temp).toFixed(1) : "--"}</td>
-        <td>${r.hum  != null ? parseFloat(r.hum).toFixed(1)  : "--"}</td>
-        <td>${r.soil != null ? parseFloat(r.soil).toFixed(1) : "--"}</td>
-        <td>${r.lux  != null ? Math.round(parseFloat(r.lux)) : "--"}</td>
-        <td>${badge(r.pest)}</td>
-        <td>${badge(r.wilt)}</td>
-        <td class="${iv > 5 ? "y" : "g"}">${iv.toFixed(2)}</td>
-        <td class="${sv > 5 ? "y" : "g"}">${sv.toFixed(2)}</td>
+        <td>${r.temp!=null?parseFloat(r.temp).toFixed(1):"--"}</td>
+        <td>${r.hum!=null?parseFloat(r.hum).toFixed(1):"--"}</td>
+        <td>${r.soil!=null?parseFloat(r.soil).toFixed(1):"--"}</td>
+        <td>${r.lux!=null?Math.round(parseFloat(r.lux)):"--"}</td>
+        <td>${badge(r.pest)}</td><td>${badge(r.wilt)}</td>
+        <td class="${iv>5?"y":"g"}">${iv.toFixed(2)}</td>
+        <td class="${sv>5?"y":"g"}">${sv.toFixed(2)}</td>
       </tr>`;
     });
   }
-  h += `</tbody></table>`;
-  document.getElementById("modalBody").innerHTML = h;
-
-  /* pager */
-  const lo = Math.max(1, curPage - 2), hi = Math.min(pages, curPage + 2);
-  let p = `<button class="pg" onclick="goPage(${curPage - 1})" ${curPage <= 1 ? "disabled" : ""}>‹ Trước</button>`;
-  if (lo > 1) p += `<button class="pg" onclick="goPage(1)">1</button>${lo > 2 ? '<span style="color:var(--mmuted);padding:0 3px;font-size:10px">…</span>' : ""}`;
-  for (let x = lo; x <= hi; x++) p += `<button class="pg ${x === curPage ? "on" : ""}" onclick="goPage(${x})">${x}</button>`;
-  if (hi < pages) p += `${hi < pages - 1 ? '<span style="color:var(--mmuted);padding:0 3px;font-size:10px">…</span>' : ""}<button class="pg" onclick="goPage(${pages})">${pages}</button>`;
-  p += `<button class="pg" onclick="goPage(${curPage + 1})" ${curPage >= pages ? "disabled" : ""}>Sau ›</button>`;
-  document.getElementById("mPager").innerHTML = p;
+  h+=`</tbody></table>`;
+  document.getElementById("modalBody").innerHTML=h;
+  const lo=Math.max(1,curPage-2), hi=Math.min(pages,curPage+2);
+  let p=`<button class="pg" onclick="goPage(${curPage-1})" ${curPage<=1?"disabled":""}>‹ Trước</button>`;
+  if(lo>1) p+=`<button class="pg" onclick="goPage(1)">1</button>${lo>2?'<span style="color:var(--muted);padding:0 3px;font-size:10px">…</span>':""}`;
+  for(let x=lo;x<=hi;x++) p+=`<button class="pg ${x===curPage?"on":""}" onclick="goPage(${x})">${x}</button>`;
+  if(hi<pages) p+=`${hi<pages-1?'<span style="color:var(--muted);padding:0 3px;font-size:10px">…</span>':""}<button class="pg" onclick="goPage(${pages})">${pages}</button>`;
+  p+=`<button class="pg" onclick="goPage(${curPage+1})" ${curPage>=pages?"disabled":""}>Sau ›</button>`;
+  document.getElementById("mPager").innerHTML=p;
 }
-
-function goPage(p) {
-  const pages = Math.ceil(filteredRows.length / PG);
-  if (p < 1 || p > pages) return;
-  curPage = p; renderTable();
-  document.getElementById("modalBody").scrollTop = 0;
-}
-
-function exportCSV() {
-  if (!filteredRows.length) return;
-  const keys = ["timestamp", "temp", "hum", "soil", "lux", "pest", "wilt", "irrigation", "spray"];
-  let csv = keys.join(",") + "\n";
-  filteredRows.forEach(r => { csv += keys.map(k => r[k] ?? "").join(",") + "\n"; });
-  const a = document.createElement("a");
-  a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-  a.download = `greenhouse_${new Date().toISOString().slice(0, 10)}.csv`;
+function goPage(p){ const pages=Math.ceil(filteredRows.length/PG); if(p<1||p>pages) return; curPage=p; renderTable(); document.getElementById("modalBody").scrollTop=0; }
+function exportCSV(){
+  if(!filteredRows.length) return;
+  const keys=["timestamp","temp","hum","soil","lux","pest","wilt","irrigation","spray"];
+  let csv=keys.join(",")+"\n";
+  filteredRows.forEach(r=>{csv+=keys.map(k=>r[k]??"").join(",")+"\n";});
+  const a=document.createElement("a");
+  a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);
+  a.download=`greenhouse_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
+document.addEventListener("keydown",e=>{if(e.key==="Escape") closeModal();});
 
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
-
-/* ── BOOT ───────────────────────────────────────── */
-setInterval(updSensors, 2000); setInterval(updBtns, 2000);
-updSensors(); updBtns();
-setTimeout(() => { initAICharts(); loadAIHistory(); }, 3000);
+/* ══════════════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════════════ */
+setInterval(updSensors, 2000);
+setInterval(updBtns,    2000);
+setInterval(updScheduler, 10000);
+updSensors(); updBtns(); updScheduler();
+setTimeout(()=>{ initAICharts(); loadAIHistory(); }, 2500);
 </script>
 </body>
 </html>
