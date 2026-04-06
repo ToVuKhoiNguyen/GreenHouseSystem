@@ -20,10 +20,10 @@
 #include <WiFiClient.h>
 #include <BlynkSimpleEsp32.h>
 BlynkTimer timer;
-//char ssid[] = "UET-Wifi-Office-Free 2.4Ghz";
-//char pass[] = "";
-char ssid[] = "Hai";
-char pass[] = "........";
+char ssid[] = "UET-Wifi-Office-Free 2.4Ghz";
+char pass[] = "";
+//char ssid[] = "Hai";
+//char pass[] = "........";
 
 #define LIGHT  19
 #define FAN    18
@@ -54,7 +54,7 @@ BLYNK_WRITE(V5)
 BLYNK_WRITE(V6)
 {
   int pinValue = param.asInt();
-  digitalWrite(PUMP, pinValue);
+  digitalWrite(PUMP, pinValue); 
 }
 BLYNK_WRITE(V7)
 {
