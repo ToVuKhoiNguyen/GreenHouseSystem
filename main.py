@@ -222,7 +222,6 @@ def save_dataset(t, h, s, l, pest, wilt, irr, spray):
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     with open(CSV_PATH, "a") as f:
         if not exists:
-            # thêm timestamp vào header
             f.write("timestamp,temp,hum,soil,lux,pest,wilt,irrigation,spray\n")
         f.write(f"{ts},{t},{h},{s},{l},{pest},{wilt},{irr},{spray}\n")
 
@@ -1078,5 +1077,4 @@ threading.Thread(target=run_cloudflare, daemon=True).start()
 
 # ============================================================
 if __name__ == "__main__":
-    print("🌱 Greenhouse API server → http://localhost:5000")
     app.run(host="0.0.0.0", port=5000, threaded=True)
