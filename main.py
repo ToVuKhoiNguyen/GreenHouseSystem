@@ -30,7 +30,6 @@ TEMP_HIGH  = 26         # °C — trên → bật quạt
 LUX_LOW    = 800        # lux — ngưỡng bật đèn (flowchart: LUX < 800)
 LUX_HIGH   = 2000       # lux — ngưỡng tắt đèn (flowchart: lux > 2000)
 DLI_MIN    = 18         # mol/m²/day — ngưỡng DLI tối thiểu (flowchart)
-
 # ── Ngưỡng VPD (flowchart image 2 phải) ─────────────────────
 VPD_HIGH   = 1.5        # kPa — trên → bật quạt
 VPD_LOW    = 0.5        # kPa — dưới → tắt quạt
