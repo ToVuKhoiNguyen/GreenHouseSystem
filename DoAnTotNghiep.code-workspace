@@ -8,5 +8,7 @@
 			"path": "Blynk"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"python-envs.defaultEnvManager": "ms-python.python:venv"
+	}
 }
