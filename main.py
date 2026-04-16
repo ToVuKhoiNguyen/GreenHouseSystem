@@ -737,7 +737,9 @@ def run_inference_task():
             is_inferring = False; return
         frame = current_frame.copy()
 
-    set_blynk("V7", 1); set_blynk("V4", 0); last_light = -1
+    set_blynk("V7", 1); 
+    threading.Thread(target=auto_off, args=("V7", 2), daemon=True).start()
+    set_blynk("V4", 0); last_light = -1
     time.sleep(2)
     cv2.imwrite("capture.jpg", frame)
 
@@ -864,6 +866,7 @@ def capture():
 
         # Tắt đèn tạm để chụp không bị chói (giống logic cũ)
         set_blynk("V7", 1)
+        threading.Thread(target=auto_off, args=("V7", 2), daemon=True).start()
         set_blynk("V4", 0)
         last_light = -1
         time.sleep(1)  # giảm từ 2s → 1s để response nhanh hơn
@@ -995,6 +998,7 @@ def capture():
         print(f"capture route error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
+        set_blynk("V7", 0)
         is_inferring = False
 
 @app.route("/result")
