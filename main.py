@@ -518,7 +518,7 @@ def _auto_ai_capture():
             if current_frame is None:
                 return
             frame = current_frame.copy()
-
+        
         ts_file      = time.strftime("%Y%m%d_%H%M%S")
         capture_path = f"auto_capture_{ts_file}.jpg"
         cv2.imwrite(capture_path, frame)
