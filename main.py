@@ -32,7 +32,6 @@ TEMP_HIGH  = 26         # °C — trên → bật quạt
 LUX_LOW    = 800        # lux — ngưỡng bật đèn (flowchart: LUX < 800)
 LUX_HIGH   = 2000       # lux — ngưỡng tắt đèn (flowchart: lux > 2000)
 DLI_MIN    = 18         # mol/m²/day — ngưỡng DLI tối thiểu (flowchart)
-
 # ── Ngưỡng VPD (flowchart image 2 phải) ─────────────────────
 VPD_HIGH   = 1.5        # kPa — trên → bật quạt
 VPD_LOW    = 0.5        # kPa — dưới → tắt quạt
@@ -526,7 +525,7 @@ def _auto_ai_capture():
                 return
             frame = current_frame.copy()
 
-        ts_file      = time.strftime("%Y%m%d_%H%M%S")   
+        ts_file      = time.strftime("%Y%m%d_%H%M%S")
         capture_path = f"auto_capture_{ts_file}.jpg"
         cv2.imwrite(capture_path, frame)
 
@@ -744,7 +743,9 @@ def run_inference_task():
             is_inferring = False; return
         frame = current_frame.copy()
 
-    set_blynk("V7", 1); set_blynk("V4", 0); last_light = -1
+    set_blynk("V7", 1); 
+    threading.Thread(target=auto_off, args=("V7", 2), daemon=True).start()
+    set_blynk("V4", 0); last_light = -1
     time.sleep(2)
     cv2.imwrite("capture.jpg", frame)
 
@@ -871,6 +872,7 @@ def capture():
 
         # Tắt đèn tạm để chụp không bị chói (giống logic cũ)
         set_blynk("V7", 1)
+        threading.Thread(target=auto_off, args=("V7", 2), daemon=True).start()
         set_blynk("V4", 0)
         last_light = -1
         time.sleep(1)  # giảm từ 2s → 1s để response nhanh hơn
@@ -1002,6 +1004,7 @@ def capture():
         print(f"capture route error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
+        set_blynk("V7", 0)
         is_inferring = False
 
 @app.route("/result")
