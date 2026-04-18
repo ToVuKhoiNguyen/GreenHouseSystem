@@ -17,10 +17,9 @@ from flask_cors import CORS
 #  CONFIG
 # ============================================================
 BLYNK_AUTH       = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4"
-#ROBOFLOW_API_KEY = "G1wXVaCU8zRCimzdnuHW"                Model cũ
-#MODEL_ID         = "nhandienrau-iajgf/3"
-ROBOFLOW_API_KEY = "zqNYeknFylTpwW8KlZJg"
-MODEL_ID         = "nhandienrau-iajgf-evigl/12"
+ROBOFLOW_API_KEY = "G1wXVaCU8zRCimzdnuHW"
+MODEL_ID         = "nhandienrau-iajgf/3"
+
 
 # ── Ngưỡng cảm biến ─────────────────────────────────────────
 MAX_WATER  = 10.0       # giây tưới tối đa mỗi lần
@@ -517,16 +516,12 @@ def _auto_ai_capture():
         return
     is_inferring = True
     try:
-        set_blynk("V4", 0)   # tắt đèn tím
-        set_blynk("V7", 1)   # bật đèn trắng
-        time.sleep(2)
-        set_blynk("V7", 0)   # tắt đèn trắng
         with frame_lock:
             if current_frame is None:
                 return
             frame = current_frame.copy()
 
-        ts_file      = time.strftime("%Y%m%d_%H%M%S")   
+        ts_file      = time.strftime("%Y%m%d_%H%M%S")
         capture_path = f"auto_capture_{ts_file}.jpg"
         cv2.imwrite(capture_path, frame)
 

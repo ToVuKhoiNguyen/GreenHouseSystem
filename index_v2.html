@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Greenhouse System</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* ═══════════════════════════════════════════
+   DARK MODE TOKENS — Navy/Slate Professional
+═══════════════════════════════════════════ */
+:root {
+  --bg:       #0f1117;
+  --surface:  #161b27;
+  --card:     #1c2333;
+  --card2:    #202840;
+  --border:   #2e3a50;
+  --border2:  #263040;
+  --accent:   #4ade80;
+  --accent2:  #22c55e;
+  --glow:     rgba(74,222,128,.14);
+  --blue:     #60a5fa;
+  --blue2:    #3b82f6;
+  --warn:     #fbbf24;
+  --danger:   #f87171;
+  --purple:   #c084fc;
+  --teal:     #2dd4bf;
+  --text:     #e2e8f0;
+  --text2:    #94a3b8;
+  --muted:    #475569;
+  --muted2:   #1e293b;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Inter', sans-serif;
+  --radius:   10px;
+}
+body.light {
+  --bg:      #f1f5f9; --surface: #ffffff; --card: #ffffff;
+  --card2:   #f8fafc; --border: #cbd5e1; --border2: #e2e8f0;
+  --accent:  #16a34a; --accent2: #15803d; --glow: rgba(22,163,74,.10);
+  --blue:    #2563eb; --blue2: #1d4ed8; --warn: #d97706;
+  --danger:  #dc2626; --purple: #9333ea; --teal: #0d9488;
+  --text:    #0f172a; --text2: #475569; --muted: #64748b; --muted2: #e2e8f0;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:var(--sans);background:var(--bg);color:var(--text);
+  font-size:13px;height:100vh;overflow:hidden;
+  transition:background .3s,color .3s;
+}
+
+/* ═══ HEADER ═══ */
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;height:46px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  box-shadow:0 1px 8px rgba(0,0,0,.25);
+}
+.hdr-left{display:flex;align-items:center;gap:12px;}
+.hdr-logo{display:flex;align-items:center;gap:8px;}
+.hdr-logo-text{
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  color:var(--accent);letter-spacing:2px;text-transform:uppercase;
+}
+.live-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 0 0 var(--glow);
+  animation:livepulse 2s infinite;
+  flex-shrink:0;
+}
+@keyframes livepulse{
+  0%{box-shadow:0 0 0 0 rgba(74,222,128,.5);}
+  70%{box-shadow:0 0 0 7px rgba(74,222,128,0);}
+  100%{box-shadow:0 0 0 0 rgba(74,222,128,0);}
+}
+.hdr-right{display:flex;align-items:center;gap:8px;}
+.hdr-clock{
+  font-family:var(--mono);font-size:11px;color:var(--text2);
+  background:var(--card);border:1px solid var(--border);
+  padding:3px 10px;border-radius:6px;letter-spacing:1px;
+}
+.hdr-btn{
+  width:30px;height:30px;border-radius:7px;
+  border:1px solid var(--border);background:transparent;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text2);font-size:12px;transition:all .15s;
+}
+.hdr-btn:hover{color:var(--accent);border-color:var(--accent);background:var(--glow);}
+.badge-fb{
+  font-family:var(--mono);font-size:8px;letter-spacing:1px;
+  padding:3px 9px;border-radius:5px;border:1px solid var(--border);
+  color:var(--text2);background:transparent;transition:all .3s;
+}
+.badge-fb.ok{color:var(--accent);border-color:var(--accent);background:var(--glow);}
+.badge-fb.err{color:var(--danger);border-color:var(--danger);}
+
+/* ═══ ALERT ═══ */
+#alertBanner{
+  display:none;
+  background:linear-gradient(90deg,rgba(248,113,113,.14),rgba(248,113,113,.04));
+  border-bottom:1px solid rgba(248,113,113,.28);
+  padding:6px 18px;font-family:var(--mono);font-size:10px;
+  color:var(--danger);letter-spacing:.5px;gap:8px;align-items:center;
+}
+#alertBanner.show{display:flex;}
+#alertBanner i{animation:ablink 1s infinite;}
+@keyframes ablink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ═══ MAIN GRID ═══ */
+.root{
+  display:grid;
+  grid-template-columns:206px 1fr 224px;
+  gap:8px;padding:8px;
+  height:calc(100vh - 46px);
+}
+.root.alert-open{height:calc(100vh - 46px - 32px);}
+
+/* ═══════════════════════════════
+   LEFT — SENSOR COLUMN
+═══════════════════════════════ */
+.col-left{display:flex;flex-direction:column;gap:6px;overflow:hidden;}
+
+/* VPD strip */
+.vpd-strip{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px 12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.vpd-label{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;}
+.vpd-sub{font-family:var(--mono);font-size:8px;color:var(--text2);margin-top:1px;}
+.vpd-val{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--blue);}
+
+/* Sensor card */
+.sensor-card{
+  flex:1;min-height:0;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:10px 12px;
+  display:flex;flex-direction:column;gap:4px;
+  transition:border-color .2s;position:relative;overflow:hidden;
+}
+.sensor-card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;
+  width:3px;border-radius:0 2px 2px 0;
+  background:var(--accent);opacity:.7;
+}
+.sensor-card.warn-state{border-color:rgba(251,191,36,.45);}
+.sensor-card.danger-state{border-color:rgba(248,113,113,.45);}
+.sensor-card.warn-state::before{background:var(--warn);}
+.sensor-card.danger-state::before{background:var(--danger);}
+
+.sc-row{display:flex;align-items:center;justify-content:space-between;}
+.sc-icon-wrap{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  background:var(--glow);border:1px solid rgba(74,222,128,.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--accent);
+}
+.sc-icon-wrap.blue{background:rgba(96,165,250,.1);border-color:rgba(96,165,250,.2);color:var(--blue);}
+.sc-icon-wrap.warn{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.2);color:var(--warn);}
+.sc-icon-wrap.purple{background:rgba(192,132,252,.1);border-color:rgba(192,132,252,.2);color:var(--purple);}
+
+.sc-label{font-family:var(--mono);font-size:7px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+.sc-value-row{display:flex;align-items:baseline;gap:4px;}
+.sc-val{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--text);line-height:1;}
+.sc-unit{font-family:var(--mono);font-size:9px;color:var(--text2);}
+
+/* Progress bar */
+.sc-bar{height:3px;background:var(--border2);border-radius:2px;overflow:hidden;}
+.sc-bar-fill{height:100%;border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1);}
+
+/* ── VIEW DATA RECENTLY button ── */
+.vdr-btn{
+  width:100%;margin-top:2px;
+  padding:5px 8px;border-radius:6px;
+  border:1px solid var(--border);background:transparent;
+  font-family:var(--mono);font-size:7.5px;letter-spacing:.8px;font-weight:600;
+  color:var(--text2);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:5px;
+  transition:all .18s;
+}
+.vdr-btn:hover{
+  border-color:var(--blue);color:var(--blue);
+  background:rgba(96,165,250,.08);
+}
+.vdr-btn i{font-size:8px;}
+
+/* ═══════════════════════════════
+   CENTER
+═══════════════════════════════ */
+.col-center{display:flex;flex-direction:column;gap:8px;overflow:hidden;}
+
+/* Camera panel — takes full remaining height */
+.cam-panel{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px;
+  display:flex;flex-direction:column;gap:7px;
+  flex:1;overflow:hidden;
+}
+.cam-panel-hdr{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.panel-label{
+  font-family:var(--mono);font-size:8px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--text2);
+  display:flex;align-items:center;gap:6px;
+}
+.panel-label i{font-size:9px;color:var(--accent);}
+
+/* Two camera boxes side by side */
+.cam-row{
+  display:grid;grid-template-columns:1fr 1.45fr;
+  gap:6px;flex:1;min-height:0;
+}
+.cam-box{
+  position:relative;border-radius:8px;overflow:hidden;
+  background:#000;border:1px solid var(--border2);
+}
+.cam-box img{width:100%;height:100%;object-fit:cover;display:block;}
+.cam-tag{
+  position:absolute;top:6px;left:6px;
+  font-family:var(--mono);font-size:7px;letter-spacing:1px;
+  background:rgba(0,0,0,.75);backdrop-filter:blur(4px);
+  padding:2px 7px;border-radius:4px;
+  color:var(--accent);border:1px solid rgba(74,222,128,.35);
+}
+.cam-tag.ai-tag{color:var(--purple);border-color:rgba(192,132,252,.35);}
+.cam-placeholder{
+  width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:7px;color:var(--muted);font-family:var(--mono);font-size:8px;
+  background:repeating-linear-gradient(45deg,#161b27,#161b27 10px,#131720 10px,#131720 20px);
+}
+.cam-placeholder i{font-size:24px;opacity:.3;}
+
+#aiSpinner{
+  display:none;position:absolute;inset:0;
+  background:rgba(0,0,0,.72);backdrop-filter:blur(2px);
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;
+}
+.spin-ring{
+  width:34px;height:34px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin-lbl{font-family:var(--mono);font-size:8px;color:var(--accent);letter-spacing:1px;}
+
+#aiOverlay{
+  display:none;position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(0deg,rgba(0,0,0,.9) 0%,transparent 100%);
+  padding:10px 10px 8px;pointer-events:none;
+}
+.ov-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px 6px;}
+.ov-cell{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.ov-k{font-family:var(--mono);font-size:7px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.8px;}
+.ov-v{font-family:var(--mono);font-size:10px;font-weight:600;}
+#statusChip{
+  display:none;position:absolute;top:6px;right:6px;
+  font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.5px;
+  padding:3px 8px;border-radius:4px;background:rgba(0,0,0,.75);border:1px solid;
+}
+
+/* ── LOGO + TITLE PANEL ── */
+.logo-panel{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:10px 16px;
+  flex-shrink:0;
+  display:flex;align-items:center;gap:14px;
+}
+.logo-img{width:52px;height:52px;object-fit:contain;flex-shrink:0;}
+.logo-text-wrap{display:flex;flex-direction:column;gap:2px;}
+.logo-title{
+  font-family:var(--sans);font-size:14px;font-weight:700;
+  color:var(--text);letter-spacing:.3px;line-height:1.2;
+}
+.logo-subtitle{
+  font-family:var(--mono);font-size:8px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--accent);
+}
+.logo-divider{
+  width:1px;height:40px;background:var(--border);flex-shrink:0;margin:0 4px;
+}
+.logo-stats{display:flex;flex-direction:column;gap:3px;margin-left:4px;}
+.logo-stat{font-family:var(--mono);font-size:8px;color:var(--text2);}
+.logo-stat span{color:var(--accent);font-weight:600;}
+
+/* ═══════════════════════════════
+   RIGHT — CONTROLS
+═══════════════════════════════ */
+.col-right{
+  display:flex;flex-direction:column;gap:6px;
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.col-right::-webkit-scrollbar{width:3px;}
+.col-right::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+.ctrl-section{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:9px 11px;flex-shrink:0;
+}
+.section-title{
+  font-family:var(--mono);font-size:8px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--muted);margin-bottom:7px;
+  display:flex;align-items:center;gap:5px;
+}
+.section-title i{font-size:9px;color:var(--blue);}
+
+/* Device buttons */
+.dev-grid{display:flex;flex-direction:column;gap:4px;}
+.dev-btn{
+  width:100%;padding:6px 10px;border-radius:7px;
+  border:1px solid var(--border);background:var(--surface);
+  font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:.8px;
+  color:var(--text2);cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;
+  transition:all .15s;
+}
+.dev-btn:hover:not(:disabled):not(.dis){border-color:var(--blue);color:var(--blue);}
+.dev-btn:disabled,.dev-btn.dis{opacity:.35;cursor:not-allowed;}
+.dev-btn.on-light{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.4);color:var(--warn);}
+.dev-btn.on-fan  {background:rgba(96,165,250,.1);border-color:rgba(96,165,250,.35);color:var(--blue);}
+.dev-btn.on-pump {background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.35);color:var(--accent);}
+.dev-btn.on-spray{background:rgba(192,132,252,.1);border-color:rgba(192,132,252,.35);color:var(--purple);}
+.dev-label{display:flex;align-items:center;gap:7px;}
+.dev-dot{width:6px;height:6px;border-radius:50%;background:var(--muted2);}
+.dev-btn.on-light .dev-dot{background:var(--warn);box-shadow:0 0 5px var(--warn);}
+.dev-btn.on-fan   .dev-dot{background:var(--blue);box-shadow:0 0 5px var(--blue);}
+.dev-btn.on-pump  .dev-dot{background:var(--accent);box-shadow:0 0 5px var(--accent);}
+.dev-btn.on-spray .dev-dot{background:var(--purple);box-shadow:0 0 5px var(--purple);}
+
+#modeBtn{
+  width:100%;padding:7px;border-radius:7px;
+  border:1px solid var(--border);background:var(--surface);
+  font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:1px;
+  color:var(--text2);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:6px;
+  transition:all .2s;margin-bottom:5px;
+}
+#modeBtn.on-mode{
+  background:linear-gradient(135deg,rgba(74,222,128,.12),rgba(34,197,94,.06));
+  border-color:var(--accent);color:var(--accent);
+  box-shadow:0 0 16px rgba(74,222,128,.1);
+}
+
+.cap-btn{
+  width:100%;padding:9px;border-radius:8px;border:none;
+  font-family:var(--mono);font-weight:600;font-size:9px;letter-spacing:1.2px;
+  color:#0a1628;
+  background:linear-gradient(135deg,#4ade80,#22c55e);
+  cursor:pointer;display:flex;justify-content:center;align-items:center;gap:6px;
+  transition:all .15s;box-shadow:0 2px 14px rgba(74,222,128,.3);
+}
+.cap-btn:hover:not(:disabled){box-shadow:0 4px 22px rgba(74,222,128,.45);transform:translateY(-1px);}
+.cap-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.cap-btn.busy{
+  background:linear-gradient(135deg,#fbbf24,#d97706);
+  box-shadow:0 2px 14px rgba(251,191,36,.3);
+  animation:busyP 1s infinite;
+}
+@keyframes busyP{0%,100%{opacity:1}50%{opacity:.7}}
+
+.extra-btn{
+  width:100%;padding:6px;border-radius:7px;margin-top:4px;
+  border:1px solid rgba(96,165,250,.3);background:rgba(96,165,250,.06);
+  font-family:var(--mono);font-size:8px;letter-spacing:.8px;font-weight:600;
+  color:var(--blue);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:5px;
+  transition:all .15s;
+}
+.extra-btn:hover{background:rgba(96,165,250,.14);border-color:var(--blue);}
+
+.ai-result-grid{display:flex;flex-direction:column;gap:2px;}
+.ai-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 0;border-bottom:1px solid var(--border2);
+}
+.ai-row:last-child{border-bottom:none;}
+.ai-k{font-family:var(--mono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.ai-v{font-family:var(--mono);font-size:10px;font-weight:600;}
+.ai-v.ok{color:var(--accent);} .ai-v.warn{color:var(--warn);} .ai-v.danger{color:var(--danger);}
+
+.sched-row{display:flex;align-items:center;justify-content:space-between;padding:3px 0;font-family:var(--mono);font-size:8px;}
+.sched-time{color:var(--text2);}
+.sched-badge{padding:1px 6px;border-radius:3px;font-size:7px;font-weight:700;letter-spacing:.5px;}
+.sched-badge.done{background:rgba(74,222,128,.12);color:var(--accent);}
+.sched-badge.pending{background:rgba(71,85,105,.15);color:var(--muted);}
+
+.db-stat-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;}
+.db-stat-row span:first-child{font-family:var(--mono);font-size:8px;color:var(--muted);}
+.db-stat-row span:last-child{font-family:var(--mono);font-size:9px;font-weight:600;color:var(--blue);}
+.outline-btn{
+  width:100%;padding:6px;border-radius:6px;margin-top:5px;
+  border:1px solid var(--accent);background:transparent;
+  font-family:var(--mono);font-size:8px;letter-spacing:.8px;font-weight:600;
+  color:var(--accent);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:5px;
+  transition:all .15s;
+}
+.outline-btn:hover{background:var(--accent);color:#0a1628;}
+
+.cooldown-track{height:3px;background:var(--border2);border-radius:2px;overflow:hidden;margin-top:4px;}
+.cooldown-fill{height:100%;background:var(--blue2);border-radius:2px;transition:width .5s;}
+
+/* ═══════════════════════════════
+   MODAL — DB TABLE
+═══════════════════════════════ */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.72);
+  display:flex;align-items:center;justify-content:center;
+  z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal-box{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  width:94vw;max-width:980px;max-height:86vh;
+  display:flex;flex-direction:column;
+  transform:translateY(14px) scale(.97);transition:transform .22s;overflow:hidden;
+}
+.modal-overlay.open .modal-box{transform:none;}
+.modal-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.modal-title{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent);letter-spacing:1.5px;}
+.modal-meta{font-family:var(--mono);font-size:9px;color:var(--text2);margin-top:3px;}
+.modal-close{
+  width:26px;height:26px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--text2);cursor:pointer;font-size:13px;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.modal-close:hover{color:var(--danger);border-color:var(--danger);}
+.modal-toolbar{
+  display:flex;align-items:center;gap:8px;padding:8px 18px;
+  border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap;
+}
+.modal-search{
+  flex:1;min-width:160px;padding:5px 10px;border-radius:6px;
+  border:1px solid var(--border);background:var(--card);
+  color:var(--text);font-family:var(--mono);font-size:9px;outline:none;transition:border-color .15s;
+}
+.modal-search:focus{border-color:var(--accent);}
+.modal-search::placeholder{color:var(--muted);}
+.modal-select{
+  padding:5px 8px;border-radius:6px;border:1px solid var(--border);
+  background:var(--card);color:var(--text);font-family:var(--mono);font-size:9px;outline:none;cursor:pointer;
+}
+.modal-count{font-family:var(--mono);font-size:9px;color:var(--text2);white-space:nowrap;margin-left:auto;}
+.tool-btn{
+  padding:5px 11px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--text2);
+  font-family:var(--mono);font-size:8px;letter-spacing:1px;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px;
+}
+.tool-btn:hover{color:var(--accent);border-color:var(--accent);}
+.tool-btn.primary{border-color:var(--accent);color:var(--accent);}
+.tool-btn.primary:hover{background:var(--accent);color:#0a1628;}
+.modal-body{flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.modal-body::-webkit-scrollbar{width:4px;height:4px;}
+.modal-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px;}
+.dbt thead{position:sticky;top:0;z-index:2;background:var(--card);}
+.dbt th{
+  padding:8px 12px;text-align:left;text-transform:uppercase;
+  letter-spacing:1px;color:var(--muted);font-size:8px;font-weight:700;
+  border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;
+}
+.dbt th:hover{color:var(--accent);}
+.dbt th .sa{margin-left:4px;opacity:.3;}
+.dbt th.sorted .sa{opacity:1;color:var(--accent);}
+.dbt tbody tr{border-bottom:1px solid var(--border2);transition:background .1s;}
+.dbt tbody tr:nth-child(even){background:rgba(255,255,255,.015);}
+.dbt tbody tr:hover{background:rgba(74,222,128,.05);}
+.dbt td{padding:6px 12px;color:var(--text);white-space:nowrap;}
+.dbt td.dim{color:var(--text2);} .dbt td.g{color:var(--accent);font-weight:600;} .dbt td.y{color:var(--warn);font-weight:600;}
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:8px;font-weight:700;}
+.badge.lo{background:rgba(74,222,128,.12);color:var(--accent);}
+.badge.mi{background:rgba(251,191,36,.12);color:var(--warn);}
+.badge.hi{background:rgba(248,113,113,.12);color:var(--danger);}
+.modal-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 18px;border-top:1px solid var(--border);background:var(--card);flex-shrink:0;
+}
+.modal-footer-txt{font-family:var(--mono);font-size:8px;color:var(--text2);}
+.pager{display:flex;gap:3px;flex-wrap:wrap;}
+.pg{
+  padding:3px 9px;border-radius:4px;border:1px solid var(--border);
+  background:transparent;color:var(--text2);font-family:var(--mono);font-size:8px;cursor:pointer;transition:all .15s;
+}
+.pg:hover:not(:disabled){color:var(--accent);border-color:var(--accent);}
+.pg:disabled{opacity:.3;cursor:not-allowed;}
+.pg.on{background:var(--accent);color:#0a1628;border-color:var(--accent);}
+.modal-loading{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:200px;gap:12px;color:var(--text2);font-family:var(--mono);font-size:9px;
+}
+
+/* ═══════════════════════════════
+   CHART MODAL (View Data Recently)
+═══════════════════════════════ */
+.chart-modal-box{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  width:88vw;max-width:700px;height:430px;
+  display:flex;flex-direction:column;
+  transform:translateY(14px) scale(.97);transition:transform .22s;overflow:hidden;
+}
+.modal-overlay.open .chart-modal-box{transform:none;}
+.chart-modal-inner{
+  flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-height:0;
+}
+.chart-meta-row{
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.chart-range-info{
+  font-family:var(--mono);font-size:8px;color:var(--text2);
+  display:flex;gap:14px;
+}
+.chart-range-item{display:flex;align-items:center;gap:5px;}
+.chart-range-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+.chart-canvas-wrap{flex:1;min-height:0;position:relative;}
+.chart-canvas-wrap canvas{position:absolute;inset:0;}
+.chart-no-data{
+  display:flex;align-items:center;justify-content:center;
+  height:100%;font-family:var(--mono);font-size:10px;color:var(--muted);
+}
+</style>
+</head>
+<body>
+
+<!-- ALERT -->
+<div id="alertBanner">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  <span id="alertText">Cảnh báo</span>
+  <button onclick="dismissAlert()" style="margin-left:auto;background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;">✕</button>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="hdr-left">
+    <div class="hdr-logo">
+      <div class="live-dot"></div>
+      <span class="hdr-logo-text">Smart Greenhouse</span>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <span class="badge-fb" id="fbBadge">☁ RTDB —</span>
+    <button class="hdr-btn" onclick="openModal()" title="Dữ liệu Firebase"><i class="fa-solid fa-database"></i></button>
+    <button class="hdr-btn" onclick="toggleTheme()" title="Đổi giao diện"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
+    <div class="hdr-clock" id="clock">--:--:--</div>
+  </div>
+</div>
+
+<!-- ROOT GRID -->
+<div class="root" id="rootGrid">
+
+  <!-- ════ LEFT — SENSORS ════ -->
+  <div class="col-left">
+
+    <!-- VPD -->
+    <div class="vpd-strip">
+      <div>
+        <div class="vpd-label">VPD Index</div>
+        <div class="vpd-sub" id="vpd-status">—</div>
+      </div>
+      <div class="vpd-val" id="vpd-val">— kPa</div>
+    </div>
+
+    <!-- Temperature -->
+    <div class="sensor-card" id="card-temp">
+      <div class="sc-row">
+        <div class="sc-icon-wrap"><i class="fa-solid fa-temperature-half"></i></div>
+        <span class="sc-label">Nhiệt độ</span>
+      </div>
+      <div class="sc-value-row">
+        <span class="sc-val" id="temp">--</span>
+        <span class="sc-unit">°C</span>
+      </div>
+      <div class="sc-bar"><div class="sc-bar-fill" id="bar-temp" style="width:0%;background:var(--accent);"></div></div>
+      <button class="vdr-btn" onclick="openChartModal('temp','Nhiệt độ (°C)','#4ade80',15,40)">
+        <i class="fa-solid fa-chart-area"></i> VIEW DATA RECENTLY
+      </button>
+    </div>
+
+    <!-- Humidity -->
+    <div class="sensor-card" id="card-hum">
+      <div class="sc-row">
+        <div class="sc-icon-wrap blue"><i class="fa-solid fa-droplet"></i></div>
+        <span class="sc-label">Độ ẩm Không khí</span>
+      </div>
+      <div class="sc-value-row">
+        <span class="sc-val" id="hum">--</span>
+        <span class="sc-unit">%</span>
+      </div>
+      <div class="sc-bar"><div class="sc-bar-fill" id="bar-hum" style="width:0%;background:var(--blue);"></div></div>
+      <button class="vdr-btn" onclick="openChartModal('hum','Độ ẩm không khí (%)','#60a5fa',20,100)">
+        <i class="fa-solid fa-chart-area"></i> VIEW DATA RECENTLY
+      </button>
+    </div>
+
+    <!-- Soil -->
+    <div class="sensor-card" id="card-soil">
+      <div class="sc-row">
+        <div class="sc-icon-wrap warn"><i class="fa-solid fa-seedling"></i></div>
+        <span class="sc-label">Độ ẩm đất</span>
+      </div>
+      <div class="sc-value-row">
+        <span class="sc-val" id="soil">--</span>
+        <span class="sc-unit">%</span>
+      </div>
+      <div class="sc-bar"><div class="sc-bar-fill" id="bar-soil" style="width:0%;background:var(--warn);"></div></div>
+      <button class="vdr-btn" onclick="openChartModal('soil','Độ ẩm đất (%)','#fbbf24',0,100)">
+        <i class="fa-solid fa-chart-area"></i> VIEW DATA RECENTLY
+      </button>
+    </div>
+
+    <!-- Lux -->
+    <div class="sensor-card" id="card-lux">
+      <div class="sc-row">
+        <div class="sc-icon-wrap purple"><i class="fa-solid fa-sun"></i></div>
+        <span class="sc-label">Ánh sáng</span>
+      </div>
+      <div class="sc-value-row">
+        <span class="sc-val" id="lux">--</span>
+        <span class="sc-unit">lux</span>
+      </div>
+      <div class="sc-bar"><div class="sc-bar-fill" id="bar-lux" style="width:0%;background:var(--purple);"></div></div>
+      <button class="vdr-btn" onclick="openChartModal('lux','Ánh sáng (lux)','#c084fc',0,10000)">
+        <i class="fa-solid fa-chart-area"></i> VIEW DATA RECENTLY
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ════ CENTER ════ -->
+  <div class="col-center">
+
+    <!-- Camera panel -->
+    <div class="cam-panel">
+      <div class="cam-panel-hdr">
+        <div class="panel-label"><i class="fa-solid fa-video"></i> Camera &amp; AI Result</div>
+        <span id="capTime" style="font-family:var(--mono);font-size:8px;color:var(--text2);"></span>
+      </div>
+      <div class="cam-row">
+        <!-- Live cam -->
+        <div class="cam-box">
+          <img id="liveStream" src="http://10.11.49.221:5000/video_feed" alt="Live">
+          <span class="cam-tag">● LIVE</span>
+        </div>
+        <!-- AI result -->
+        <div class="cam-box" id="aiBox">
+          <div class="cam-placeholder" id="camPlaceholder">
+            <i class="fa-solid fa-robot"></i>
+            <span>Chưa có ảnh phân tích</span>
+            <span style="opacity:.4;font-size:7px;">Bấm CHỤP &amp; PHÂN TÍCH</span>
+          </div>
+          <img id="resultImg" src="" alt="AI" style="display:none;width:100%;height:100%;object-fit:cover;">
+          <div id="aiSpinner">
+            <div class="spin-ring"></div>
+            <span class="spin-lbl">ĐANG PHÂN TÍCH...</span>
+          </div>
+          <div id="aiOverlay">
+            <div class="ov-grid">
+              <div class="ov-cell"><span class="ov-k">Status</span><span class="ov-v" id="ov-status" style="color:var(--accent);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Stress</span><span class="ov-v" id="ov-stress" style="color:var(--accent);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Pest/Wilt</span><span class="ov-v" id="ov-pw" style="color:var(--warn);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Tưới</span><span class="ov-v" id="ov-irr" style="color:var(--blue);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Phun</span><span class="ov-v" id="ov-spray" style="color:var(--purple);">--</span></div>
+              <div class="ov-cell"><span class="ov-k">Lá</span><span class="ov-v" id="ov-leaf" style="color:var(--text);">--</span></div>
+            </div>
+          </div>
+          <div id="statusChip"></div>
+          <span class="cam-tag ai-tag">✦ AI RESULT</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOGO + TITLE -->
+    <div class="logo-panel">
+      <img src="Logo_HUET.svg.png" class="logo-img" alt="Logo">
+      <div class="logo-divider"></div>
+      <div class="logo-text-wrap">
+        <div class="logo-title">Smart Greenhouse System</div>
+        <div class="logo-subtitle">IoT Monitoring  &amp; Control</div>
+      </div>
+      <div class="logo-divider"></div>
+      <div class="logo-stats">
+        <div class="logo-stat">Cập nhật: <span id="ls-update">--:--:--</span></div>
+        <div class="logo-stat">Firebase: <span id="ls-db">--</span></div>
+        <div class="logo-stat">AI tiếp: <span id="ls-ai">--</span></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════ RIGHT — CONTROLS ════ -->
+  <div class="col-right">
+
+    <div class="ctrl-section">
+      <div class="section-title"><i class="fa-solid fa-sliders"></i> Chế độ hệ thống</div>
+      <button id="modeBtn" onclick="toggleMode()">
+        <i class="fa-solid fa-hand"></i> MANUAL MODE
+      </button>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="section-title"><i class="fa-solid fa-plug"></i> Thiết bị</div>
+      <div class="dev-grid">
+        <button id="lightBtn" class="dev-btn" onclick="toggle(4)">
+          <div class="dev-label"><div class="dev-dot"></div> ĐÈN CHIẾU SÁNG</div>
+          <i class="fa-solid fa-sun" style="font-size:10px;"></i>
+        </button>
+        <button id="fanBtn" class="dev-btn" onclick="toggle(5)">
+          <div class="dev-label"><div class="dev-dot"></div> QUẠT LÀM MÁT</div>
+          <i class="fa-solid fa-fan" style="font-size:10px;"></i>
+        </button>
+        <button id="pumpBtn" class="dev-btn" onclick="toggle(6)">
+          <div class="dev-label"><div class="dev-dot"></div> BƠM TƯỚI</div>
+          <i class="fa-solid fa-droplet" style="font-size:10px;"></i>
+        </button>
+        <button id="sprayBtn" class="dev-btn" onclick="toggle(8)">
+          <div class="dev-label"><div class="dev-dot"></div> PHUN SƯƠNG</div>
+          <i class="fa-solid fa-spray-can-sparkles" style="font-size:10px;"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="section-title"><i class="fa-solid fa-robot"></i> Phân tích AI</div>
+      <button id="captureBtn" class="cap-btn" onclick="capture()">
+        <i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH
+      </button>
+      <button class="extra-btn" onclick="extraWater()">
+        <i class="fa-solid fa-faucet-drip"></i> TƯỚI BỔ SUNG NGAY
+      </button>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="section-title"><i class="fa-solid fa-leaf"></i> Kết quả AI</div>
+      <div class="ai-result-grid">
+        <div class="ai-row"><span class="ai-k">Trạng thái</span><span class="ai-v ok" id="r-status">--</span></div>
+        <div class="ai-row"><span class="ai-k">Sâu bệnh</span><span class="ai-v" id="r-pest">--</span></div>
+        <div class="ai-row"><span class="ai-k">Héo lá</span><span class="ai-v" id="r-wilt">--</span></div>
+        <div class="ai-row"><span class="ai-k">Stress</span><span class="ai-v" id="r-stress">--</span></div>
+        <div class="ai-row"><span class="ai-k">Tưới (s)</span><span class="ai-v" id="r-irr">--</span></div>
+        <div class="ai-row"><span class="ai-k">Phun (s)</span><span class="ai-v" id="r-spray">--</span></div>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="section-title"><i class="fa-solid fa-calendar-check"></i> Lịch tưới hôm nay</div>
+      <div id="schedList"><div class="sched-row"><span class="sched-time">Đang tải...</span></div></div>
+      <div style="margin-top:6px;font-family:var(--mono);font-size:8px;color:var(--text2);">
+        AI chụp tiếp: <span id="nextAiSlot" style="color:var(--blue);">--</span>
+      </div>
+      <div style="margin-top:4px;font-family:var(--mono);font-size:7px;color:var(--muted);">Cooldown tưới bổ sung</div>
+      <div class="cooldown-track"><div class="cooldown-fill" id="cooldownBar" style="width:0%;"></div></div>
+      <div style="font-family:var(--mono);font-size:7px;color:var(--text2);text-align:right;margin-top:2px;" id="cooldownText">—</div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="section-title"><i class="fa-solid fa-cloud"></i> Firebase Database</div>
+      <div class="db-stat-row"><span>Bản ghi</span><span id="db-count">--</span></div>
+      <div class="db-stat-row"><span>Cập nhật</span><span id="db-last">--</span></div>
+      <div class="db-stat-row"><span>Nguồn</span><span id="db-source" style="color:var(--accent);">--</span></div>
+      <button class="outline-btn" onclick="openModal()"><i class="fa-solid fa-table-list" style="font-size:9px;"></i> XEM DỮ LIỆU</button>
+    </div>
+
+    <div style="height:2px;flex-shrink:0;"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL DATABASE TABLE ═══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="bgClick(event)">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title"><i class="fa-solid fa-database" style="font-size:9px;margin-right:7px;"></i>FIREBASE REALTIME DATABASE — AI DATASET</div>
+        <div class="modal-meta" id="modalMeta">Đang kết nối...</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-toolbar">
+      <input class="modal-search" id="mSearch" type="text" placeholder="🔍  Tìm kiếm..." oninput="filterRows()">
+      <select class="modal-select" id="mFilter" onchange="filterRows()">
+        <option value="">Tất cả bản ghi</option>
+        <option value="pest">Pest cao (&gt;0.3)</option>
+        <option value="wilt">Wilt cao (&gt;0.3)</option>
+        <option value="irr">Tưới nhiều (&gt;5s)</option>
+        <option value="spray">Phun nhiều (&gt;5s)</option>
+      </select>
+      <span class="modal-count" id="mCount">-- bản ghi</span>
+      <button class="tool-btn primary" onclick="refreshModal()"><i class="fa-solid fa-rotate" style="font-size:8px;"></i> Làm mới</button>
+      <button class="tool-btn" onclick="exportCSV()"><i class="fa-solid fa-download" style="font-size:8px;"></i> Xuất CSV</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div class="modal-loading"><div class="spin-ring"></div><span>Đang tải từ Realtime Database...</span></div>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-footer-txt" id="mPageInfo">--</span>
+      <div class="pager" id="mPager"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL CHART (View Data Recently) ═══ -->
+<div class="modal-overlay" id="chartModalOverlay" onclick="bgChartClick(event)">
+  <div class="chart-modal-box">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title" id="chartModalTitle">—</div>
+        <div class="modal-meta" id="chartModalMeta">200 bản ghi gần nhất</div>
+      </div>
+      <button class="modal-close" onclick="closeChartModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="chart-modal-inner">
+      <div class="chart-meta-row">
+        <div class="chart-range-info" id="chartRangeInfo"></div>
+        <span style="font-family:var(--mono);font-size:8px;color:var(--muted);" id="chartRecordCount"></span>
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas id="sensorDetailChart"></canvas>
+        <div class="chart-no-data" id="chartNoData" style="display:none;">Không có dữ liệu</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══ CONFIG ══ */
+const FIREBASE_DB_URL = "https://greenhouse-31c64-default-rtdb.asia-southeast1.firebasedatabase.app";
+const FB_NODE   = "ai_dataset";
+const TOKEN     = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4";
+const BASE      = "https://blynk.cloud/external/api";
+const FLASK     = "http://10.11.49.221:5000";
+
+// Biên độ cố định cho từng cảm biến
+const SENSOR_RANGES = {
+  temp: { min: 15, max: 40,    warn: 28, danger: 32 },
+  hum:  { min: 20, max: 100,   warn: null, danger: null },
+  soil: { min: 0,  max: 100,   warn: 50, danger: 35 },
+  lux:  { min: 0,  max: 10000, warn: null, danger: null },
+};
+
+async function fbGet(node, limitLast=0) {
+  let url = `${FIREBASE_DB_URL}/${node}.json`;
+  if (limitLast>0) url += `?orderBy="$key"&limitToLast=${limitLast}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Firebase HTTP ${r.status}`);
+  return r.json();
+}
+
+/* ── THEME ── */
+let isDark = true;
+function toggleTheme() {
+  isDark = !isDark;
+  document.body.classList.toggle("light", !isDark);
+  document.getElementById("themeIcon").className = isDark ? "fa-solid fa-moon" : "fa-solid fa-sun";
+  localStorage.setItem("gh_theme", isDark ? "dark" : "light");
+}
+(function(){
+  if(localStorage.getItem("gh_theme")==="light"){
+    isDark=false; document.body.classList.add("light");
+    document.getElementById("themeIcon").className="fa-solid fa-sun";
+  }
+})();
+
+/* ── CLOCK ── */
+function tickClock(){
+  const t = new Date().toLocaleTimeString("vi-VN");
+  document.getElementById("clock").textContent = t;
+  document.getElementById("ls-update").textContent = t;
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ── Firebase badge ── */
+(async function checkFB(){
+  const b = document.getElementById("fbBadge");
+  try {
+    await fbGet(".info/connected");
+    b.textContent="☁ RTDB OK"; b.classList.add("ok");
+    document.getElementById("ls-db").textContent="OK";
+    document.getElementById("ls-db").style.color="var(--accent)";
+  } catch {
+    b.textContent="☁ RTDB ERR"; b.classList.add("err");
+    document.getElementById("ls-db").textContent="ERR";
+    document.getElementById("ls-db").style.color="var(--danger)";
+  }
+})();
+
+/* ══ ALERT ══ */
+const alerts = [];
+function triggerAlert(msg) {
+  if(alerts.includes(msg)) return;
+  alerts.push(msg);
+  document.getElementById("alertText").textContent = alerts[alerts.length-1];
+  document.getElementById("alertBanner").classList.add("show");
+  document.getElementById("rootGrid").classList.add("alert-open");
+}
+function dismissAlert() {
+  alerts.length=0;
+  document.getElementById("alertBanner").classList.remove("show");
+  document.getElementById("rootGrid").classList.remove("alert-open");
+}
+
+/* ══ BLYNK ══ */
+const bg = async p => (await fetch(`${BASE}/get?token=${TOKEN}&V${p}`)).text();
+const bs = async (p,v) => fetch(`${BASE}/update?token=${TOKEN}&V${p}=${v}`);
+
+async function updSensors() {
+  try {
+    const [t,h,s,l] = await Promise.all([bg(0),bg(1),bg(2),bg(3)]);
+    const tf=parseFloat(t), hf=parseFloat(h), sf=parseFloat(s), lf=parseFloat(l);
+
+    if(!isNaN(tf)){
+      document.getElementById("temp").textContent=tf.toFixed(1);
+      const pct = Math.min(100, Math.max(0, (tf - SENSOR_RANGES.temp.min) / (SENSOR_RANGES.temp.max - SENSOR_RANGES.temp.min) * 100));
+      document.getElementById("bar-temp").style.width=pct+"%";
+      const tc=document.getElementById("card-temp");
+      tc.classList.remove("warn-state","danger-state");
+      if(tf>=SENSOR_RANGES.temp.danger) tc.classList.add("danger-state");
+      else if(tf>=SENSOR_RANGES.temp.warn) tc.classList.add("warn-state");
+    }
+    if(!isNaN(hf)){
+      document.getElementById("hum").textContent=hf.toFixed(1);
+      document.getElementById("bar-hum").style.width=hf+"%";
+    }
+    if(!isNaN(sf)){
+      document.getElementById("soil").textContent=sf.toFixed(1);
+      document.getElementById("bar-soil").style.width=sf+"%";
+      const sc=document.getElementById("card-soil");
+      sc.classList.remove("warn-state","danger-state");
+      if(sf<=SENSOR_RANGES.soil.danger) sc.classList.add("danger-state");
+      else if(sf<=SENSOR_RANGES.soil.warn) sc.classList.add("warn-state");
+    }
+    if(!isNaN(lf)){
+      document.getElementById("lux").textContent=lf.toFixed(0);
+      document.getElementById("bar-lux").style.width=Math.min(lf/10000*100,100)+"%";
+    }
+
+    if(!isNaN(tf)&&!isNaN(hf)){
+      const es=0.6108*Math.exp(17.27*tf/(tf+237.3));
+      const vpd=Math.max(0,es*(1-hf/100));
+      document.getElementById("vpd-val").textContent=vpd.toFixed(2)+" kPa";
+      const vs=document.getElementById("vpd-status");
+      if(vpd>1.5){vs.textContent="⚠ Bốc hơi cao";vs.style.color="var(--danger)";}
+      else if(vpd<0.5){vs.textContent="✓ Độ ẩm tốt";vs.style.color="var(--accent)";}
+      else{vs.textContent="→ Bình thường";vs.style.color="var(--text2)";}
+    }
+  } catch(e){}
+}
+
+/* Device buttons */
+const CFG = {
+  lightBtn:{onClass:"on-light"}, fanBtn:{onClass:"on-fan"},
+  pumpBtn:{onClass:"on-pump"},   sprayBtn:{onClass:"on-spray"},
+};
+function applyBtn(id, val) {
+  const b=document.getElementById(id), c=CFG[id], on=val==="1";
+  b.className="dev-btn"+(on?" "+c.onClass:"");
+  b.disabled=isAuto; if(isAuto) b.classList.add("dis");
+}
+let isAuto=false;
+async function updBtns() {
+  try {
+    const [l,f,p,sp,m] = await Promise.all([bg(4),bg(5),bg(6),bg(8),bg(9)]);
+    isAuto=m==="1";
+    const mb=document.getElementById("modeBtn");
+    mb.className=isAuto?"on-mode":"";
+    mb.innerHTML=isAuto
+      ?'<i class="fa-solid fa-robot"></i> AUTO MODE — ĐANG CHẠY'
+      :'<i class="fa-solid fa-hand"></i> MANUAL MODE';
+    applyBtn("lightBtn",l); applyBtn("fanBtn",f);
+    applyBtn("pumpBtn",p);  applyBtn("sprayBtn",sp);
+  } catch(e){}
+}
+async function toggle(pin){ if(isAuto) return; await bs(pin,(await bg(pin))==="1"?0:1); }
+async function toggleMode(){ await bs(9,(await bg(9))==="1"?0:1); }
+
+/* ══ CAPTURE ══ */
+let isInferring=false;
+async function capture(){
+  if(isInferring) return;
+  isInferring=true;
+  const btn=document.getElementById("captureBtn");
+  btn.disabled=true; btn.classList.add("busy");
+  btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> ĐANG PHÂN TÍCH...';
+  document.getElementById("camPlaceholder").style.display="none";
+  document.getElementById("aiSpinner").style.display="flex";
+  try {
+    const res=await fetch(`${FLASK}/capture`,{method:"POST"});
+    if(res.status===409){alert("⚠️ Server đang bận, thử lại sau!");resetCap();return;}
+    if(!res.ok){const e=await res.json().catch(()=>({}));alert("❌ Lỗi: "+(e.message||res.statusText));resetCap();return;}
+    const d=await res.json();
+    showRes(d);
+  } catch(e){
+    alert("⚠️ Không kết nối được Flask!\n"+e); resetCap();
+  }
+}
+
+function showRes(d){
+  document.getElementById("aiSpinner").style.display="none";
+  const img=document.getElementById("resultImg");
+  img.src=`${FLASK}/latest_result?t=${Date.now()}`;
+  img.style.display="block";
+
+  const stress=d.stress_index??0;
+  const sc=stress>0.35?"var(--danger)":stress>0.05?"var(--warn)":"var(--accent)";
+  const st=d.plant_status||d.status||"--";
+  const stc=st.includes("nặng")?"var(--danger)":(st.includes("nhẹ")||st.includes("trung"))?"var(--warn)":"var(--accent)";
+
+  document.getElementById("ov-status").textContent=st; document.getElementById("ov-status").style.color=stc;
+  document.getElementById("ov-stress").textContent=stress.toFixed(3); document.getElementById("ov-stress").style.color=sc;
+  document.getElementById("ov-pw").textContent=`${d.pest_count??0}/${d.wilt_count??0}`;
+  document.getElementById("ov-irr").textContent=(d.irrigation??"-")+"s";
+  document.getElementById("ov-spray").textContent=(d.spray??"-")+"s";
+  document.getElementById("ov-leaf").textContent=d.leaf_count??"-";
+  document.getElementById("aiOverlay").style.display="block";
+  document.getElementById("capTime").textContent=d.time||"";
+
+  const chip=document.getElementById("statusChip");
+  chip.style.display="block"; chip.textContent=st; chip.style.borderColor=stc; chip.style.color=stc;
+
+  document.getElementById("r-status").textContent=st;
+  document.getElementById("r-status").className="ai-v "+(st.includes("nặng")?"danger":st.includes("nhẹ")||st.includes("trung")?"warn":"ok");
+  document.getElementById("r-pest").textContent=d.pest_count??"-";
+  document.getElementById("r-wilt").textContent=d.wilt_count??"-";
+  document.getElementById("r-stress").textContent=stress.toFixed(3);
+  document.getElementById("r-stress").className="ai-v "+(stress>0.35?"danger":stress>0.05?"warn":"ok");
+  document.getElementById("r-irr").textContent=(d.irrigation??"-")+"s";
+  document.getElementById("r-spray").textContent=(d.spray??"-")+"s";
+
+  if(stress>0.35) triggerAlert(`🌿 AI: STRESS NẶNG (${stress.toFixed(3)}) — ${st}`);
+  if(document.getElementById("modalOverlay").classList.contains("open")){allRows=[];setTimeout(fetchModalData,2500);}
+  resetCap();
+}
+
+function resetCap(){
+  isInferring=false;
+  const btn=document.getElementById("captureBtn");
+  btn.disabled=false; btn.classList.remove("busy");
+  btn.innerHTML='<i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH';
+  document.getElementById("aiSpinner").style.display="none";
+}
+
+async function extraWater(){
+  try {
+    const r=await fetch(`${FLASK}/extra_water_now`,{method:"POST"});
+    const d=await r.json();
+    if(r.status===409) alert("⚠️ Bơm đang chạy!");
+    else alert(`💧 ${d.message}`);
+  } catch(e){ alert("Không kết nối Flask: "+e); }
+}
+
+/* ══ SCHEDULER ══ */
+async function updScheduler(){
+  try {
+    const d=await (await fetch(`${FLASK}/scheduler_status`)).json();
+    let html="";
+    (d.scheduled_watering||[]).forEach(s=>{
+      html+=`<div class="sched-row">
+        <span class="sched-time"><i class="fa-regular fa-clock" style="font-size:8px;margin-right:4px;"></i>${s.time}</span>
+        <span class="sched-badge ${s.done_today?"done":"pending"}">${s.done_today?"ĐÃ TƯỚI":"CHỜ"}</span>
+      </div>`;
+    });
+    document.getElementById("schedList").innerHTML=html||"<div style='font-family:var(--mono);font-size:8px;color:var(--muted);'>Không có lịch</div>";
+    const slot = d.next_ai_capture_slot||"--";
+    document.getElementById("nextAiSlot").textContent=slot;
+    document.getElementById("ls-ai").textContent=slot;
+    const remaining=d.pump_cooldown_remaining||0;
+    document.getElementById("cooldownBar").style.width=Math.min(100,remaining/300*100)+"%";
+    document.getElementById("cooldownText").textContent=remaining>0?`${Math.round(remaining)}s còn lại`:"Sẵn sàng";
+  } catch(e){}
+}
+
+/* ══ CHART MODAL (View Data Recently) ══
+   Biên độ cố định theo từng cảm biến để nhìn rõ sự thay đổi
+*/
+let sensorDetailChart = null;
+
+// fieldKey, label, color, yMin, yMax đến từ nút bấm
+async function openChartModal(field, label, color, yMin, yMax) {
+  document.getElementById("chartModalTitle").textContent = label.toUpperCase();
+  document.getElementById("chartModalMeta").textContent  = "Đang tải dữ liệu...";
+  document.getElementById("chartRangeInfo").innerHTML    = "";
+  document.getElementById("chartRecordCount").textContent= "";
+  document.getElementById("chartNoData").style.display   = "none";
+  document.getElementById("sensorDetailChart").style.display = "block";
+  document.getElementById("chartModalOverlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+
+  if(sensorDetailChart){ sensorDetailChart.destroy(); sensorDetailChart=null; }
+
+  let rows = [];
+  try {
+    const r = await fetch(`${FLASK}/sensor_history`);
+    if(r.ok){ const d=await r.json(); if(Array.isArray(d)&&d.length) rows=d; }
+  } catch(e){}
+
+  if(!rows.length){
+    try {
+      const raw = await fbGet(FB_NODE, 200);
+      if(raw&&typeof raw==="object") rows=Object.values(raw);
+    } catch(e){}
+  }
+
+  if(!rows.length){
+    document.getElementById("sensorDetailChart").style.display="none";
+    document.getElementById("chartNoData").style.display="flex";
+    document.getElementById("chartModalMeta").textContent="Không có dữ liệu";
+    return;
+  }
+
+  const labels = rows.map((r,i)=>{
+    const ts=String(r.timestamp||"");
+    const m=ts.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+    return m?`${m[4]}:${m[5]}`:`#${i+1}`;
+  });
+  const values = rows.map(r=>parseFloat(r[field])||0);
+  const realMin = Math.min(...values), realMax = Math.max(...values);
+
+  document.getElementById("chartModalMeta").textContent =
+    `${rows.length} bản ghi · ${new Date().toLocaleTimeString("vi-VN")}`;
+  document.getElementById("chartRecordCount").textContent=`${rows.length} điểm`;
+  document.getElementById("chartRangeInfo").innerHTML=
+    `<div class="chart-range-item"><div class="chart-range-dot" style="background:${color};"></div><span style="color:var(--text2)">Min: <b style="color:${color}">${realMin.toFixed(1)}</b></span></div>`+
+    `<div class="chart-range-item"><span style="color:var(--text2)">Max: <b style="color:${color}">${realMax.toFixed(1)}</b></span></div>`+
+    `<div class="chart-range-item"><span style="color:var(--text2)">Avg: <b style="color:${color}">${(values.reduce((a,b)=>a+b,0)/values.length).toFixed(1)}</b></span></div>`;
+
+  const gc = () => isDark?{grid:"rgba(46,58,80,.5)",tick:"#475569"}:{grid:"#e2e8f0",tick:"#64748b"};
+  const {grid,tick}=gc();
+
+  const ctx = document.getElementById("sensorDetailChart").getContext("2d");
+  sensorDetailChart = new Chart(ctx,{
+    type:"line",
+    data:{
+      labels,
+      datasets:[{
+        data:values, label,
+        borderColor:color,
+        backgroundColor:color+"1a",
+        tension:0.35, fill:true,
+        pointRadius: values.length>60?0:2.5,
+        pointHoverRadius:5,
+        borderWidth:2,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:"rgba(22,27,39,.95)",
+          titleColor:"#94a3b8",
+          bodyColor:color,
+          borderColor:color,
+          borderWidth:1,
+          callbacks:{ label: ctx=>`  ${ctx.parsed.y.toFixed(2)}` }
+        }
+      },
+      scales:{
+        x:{
+          ticks:{color:tick,font:{size:8,family:"JetBrains Mono"},maxTicksLimit:10,maxRotation:0},
+          grid:{color:grid}
+        },
+        y:{
+          // Biên độ CỐ ĐỊNH — không tự co giãn theo dữ liệu
+          min: yMin,
+          max: yMax,
+          ticks:{color:tick,font:{size:9,family:"JetBrains Mono"},maxTicksLimit:7},
+          grid:{color:grid}
+        }
+      },
+      animation:{duration:350}
+    }
+  });
+}
+
+function closeChartModal(){
+  document.getElementById("chartModalOverlay").classList.remove("open");
+  document.body.style.overflow="";
+}
+function bgChartClick(e){ if(e.target===document.getElementById("chartModalOverlay")) closeChartModal(); }
+
+/* ══ DATABASE TABLE MODAL ══ */
+let allRows=[], filteredRows=[], curPage=1;
+const PG=25;
+async function openModal(){
+  document.getElementById("modalOverlay").classList.add("open");
+  document.body.style.overflow="hidden";
+  if(allRows.length===0) await fetchModalData(); else renderTable();
+}
+function closeModal(){ document.getElementById("modalOverlay").classList.remove("open"); document.body.style.overflow=""; }
+function bgClick(e){ if(e.target===document.getElementById("modalOverlay")) closeModal(); }
+async function refreshModal(){
+  allRows=[];
+  document.getElementById("modalBody").innerHTML='<div class="modal-loading"><div class="spin-ring"></div><span>Đang làm mới...</span></div>';
+  await fetchModalData();
+}
+async function fetchModalData(){
+  document.getElementById("modalBody").innerHTML='<div class="modal-loading"><div class="spin-ring"></div><span>Đang đọc Firebase Realtime Database...</span></div>';
+  try {
+    const raw=await fbGet(FB_NODE);
+    if(raw&&typeof raw==="object"){
+      allRows=Object.entries(raw)
+        .sort((a,b)=>String(b[0]).localeCompare(String(a[0])))
+        .map(([key,val])=>({_key:key,...val}));
+      document.getElementById("modalMeta").textContent=`${allRows.length} bản ghi · ${new Date().toLocaleTimeString("vi-VN")} · Realtime DB`;
+      document.getElementById("db-count").textContent=allRows.length;
+      document.getElementById("db-last").textContent=new Date().toLocaleTimeString("vi-VN");
+      document.getElementById("db-source").textContent="Realtime DB";
+      document.getElementById("fbBadge").textContent="☁ RTDB OK"; document.getElementById("fbBadge").className="badge-fb ok";
+      filteredRows=[...allRows]; curPage=1; renderTable(); return;
+    }
+    throw new Error("empty");
+  } catch(e){
+    document.getElementById("fbBadge").className="badge-fb err"; document.getElementById("fbBadge").textContent="☁ RTDB ERR";
+    try {
+      const rows=await (await fetch(`${FLASK}/csv_data`)).json();
+      allRows=[...rows].reverse().map((r,i)=>({_key:`csv_${i}`,...r}));
+      document.getElementById("modalMeta").textContent=`${allRows.length} bản ghi · Flask CSV (fallback)`;
+      document.getElementById("db-source").textContent="Flask CSV";
+      filteredRows=[...allRows]; curPage=1; renderTable();
+    } catch {
+      document.getElementById("modalBody").innerHTML='<div class="modal-loading"><span style="color:var(--danger)">❌ Không thể tải dữ liệu.</span></div>';
+    }
+  }
+}
+let sCol="",sDir=1;
+function sortBy(col){ sDir=sCol===col?-sDir:1; sCol=col; filteredRows.sort((a,b)=>((parseFloat(a[col])||0)-(parseFloat(b[col])||0))*sDir); curPage=1; renderTable(); }
+function filterRows(){
+  const q=document.getElementById("mSearch").value.toLowerCase();
+  const f=document.getElementById("mFilter").value;
+  filteredRows=allRows.filter(r=>{
+    const mq=!q||Object.values(r).some(v=>String(v).toLowerCase().includes(q));
+    let mf=true;
+    if(f==="pest") mf=(parseFloat(r.pest)||0)>0.3;
+    if(f==="wilt") mf=(parseFloat(r.wilt)||0)>0.3;
+    if(f==="irr")  mf=(parseFloat(r.irrigation)||0)>5;
+    if(f==="spray")mf=(parseFloat(r.spray)||0)>5;
+    return mq&&mf;
+  });
+  curPage=1; renderTable();
+}
+function badge(v){ const n=parseFloat(v)||0; if(n>0.3) return `<span class="badge hi">${n.toFixed(3)}</span>`; if(n>0.1) return `<span class="badge mi">${n.toFixed(3)}</span>`; return `<span class="badge lo">${n.toFixed(3)}</span>`; }
+function fmtTs(ts){ if(!ts) return "--"; const s=String(ts); const m=s.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/); if(m) return `${m[3]}/${m[2]}/${m[1].slice(2)} ${m[4]}:${m[5]}:${m[6]}`; return s.slice(0,19); }
+function sa(col){ return `<span class="sa">${sCol!==col?"↕":sDir>0?"↑":"↓"}</span>`; }
+function renderTable(){
+  const total=filteredRows.length, pages=Math.max(1,Math.ceil(total/PG));
+  if(curPage>pages) curPage=pages;
+  const st=(curPage-1)*PG, en=Math.min(st+PG,total), slice=filteredRows.slice(st,en);
+  document.getElementById("mCount").textContent=total+" bản ghi";
+  document.getElementById("mPageInfo").textContent=`Trang ${curPage}/${pages} · ${st+1}–${en} / ${total}`;
+  const cols=[
+    {k:"timestamp",l:"Thời gian",s:false},{k:"temp",l:"Temp °C",s:true},{k:"hum",l:"Hum %",s:true},
+    {k:"soil",l:"Soil %",s:true},{k:"lux",l:"Lux",s:true},{k:"pest",l:"Pest sev",s:true},
+    {k:"wilt",l:"Wilt sev",s:true},{k:"irrigation",l:"Tưới (s)",s:true},{k:"spray",l:"Phun (s)",s:true},
+  ];
+  let h=`<table class="dbt"><thead><tr><th style="padding-left:14px;width:36px;">#</th>`;
+  cols.forEach(c=>h+=`<th class="${sCol===c.k?"sorted":""}" ${c.s?`onclick="sortBy('${c.k}')"`:""}>${c.l}${c.s?sa(c.k):""}</th>`);
+  h+=`</tr></thead><tbody>`;
+  if(!slice.length){
+    h+=`<tr><td colspan="${cols.length+1}" style="text-align:center;padding:28px;color:var(--muted);">Không có dữ liệu phù hợp</td></tr>`;
+  } else {
+    slice.forEach((r,i)=>{
+      const iv=parseFloat(r.irrigation)||0, sv=parseFloat(r.spray)||0;
+      h+=`<tr>
+        <td class="dim" style="padding-left:14px;">${st+i+1}</td>
+        <td class="dim">${fmtTs(r.timestamp)}</td>
+        <td>${r.temp!=null?parseFloat(r.temp).toFixed(1):"--"}</td>
+        <td>${r.hum!=null?parseFloat(r.hum).toFixed(1):"--"}</td>
+        <td>${r.soil!=null?parseFloat(r.soil).toFixed(1):"--"}</td>
+        <td>${r.lux!=null?Math.round(parseFloat(r.lux)):"--"}</td>
+        <td>${badge(r.pest)}</td><td>${badge(r.wilt)}</td>
+        <td class="${iv>5?"y":"g"}">${iv.toFixed(2)}</td>
+        <td class="${sv>5?"y":"g"}">${sv.toFixed(2)}</td>
+      </tr>`;
+    });
+  }
+  h+=`</tbody></table>`;
+  document.getElementById("modalBody").innerHTML=h;
+  const lo=Math.max(1,curPage-2), hi=Math.min(pages,curPage+2);
+  let p=`<button class="pg" onclick="goPage(${curPage-1})" ${curPage<=1?"disabled":""}>‹ Trước</button>`;
+  if(lo>1) p+=`<button class="pg" onclick="goPage(1)">1</button>${lo>2?'<span style="color:var(--muted);padding:0 3px;">…</span>':""}`;
+  for(let x=lo;x<=hi;x++) p+=`<button class="pg ${x===curPage?"on":""}" onclick="goPage(${x})">${x}</button>`;
+  if(hi<pages) p+=`${hi<pages-1?'<span style="color:var(--muted);padding:0 3px;">…</span>':""}`;
+  p+=`<button class="pg" onclick="goPage(${curPage+1})" ${curPage>=pages?"disabled":""}>Sau ›</button>`;
+  document.getElementById("mPager").innerHTML=p;
+}
+function goPage(p){ const pages=Math.ceil(filteredRows.length/PG); if(p<1||p>pages) return; curPage=p; renderTable(); document.getElementById("modalBody").scrollTop=0; }
+function exportCSV(){
+  if(!filteredRows.length) return;
+  const keys=["timestamp","temp","hum","soil","lux","pest","wilt","irrigation","spray"];
+  let csv=keys.join(",")+"\n";
+  filteredRows.forEach(r=>{csv+=keys.map(k=>r[k]??"").join(",")+"\n";});
+  const a=document.createElement("a");
+  a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);
+  a.download=`greenhouse_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeChartModal();}});
+
+/* ══ BOOT ══ */
+setInterval(updSensors,  2000);
+setInterval(updBtns,     2000);
+setInterval(updScheduler,10000);
+updSensors(); updBtns(); updScheduler();
+</script>
+</body>
+</html>
