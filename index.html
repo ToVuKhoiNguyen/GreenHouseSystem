@@ -246,7 +246,7 @@ body.light::before { display:none; }
   display:flex;align-items:center;gap:6px;
 }
 .panel-label i{font-size:9px;}
-.cam-row{display:grid;grid-template-columns:1fr 1.45fr;gap:6px;flex:1;overflow:hidden;}
+.cam-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;flex:1;overflow:hidden;}
 .cam-box{position:relative;border-radius:7px;overflow:hidden;background:#000;}
 .cam-box img{width:100%;height:100%;object-fit:cover;display:block;}
 .cam-tag{
@@ -283,25 +283,8 @@ body.light::before { display:none; }
 @keyframes spin{to{transform:rotate(360deg)}}
 .spin-label{font-family:var(--mono);font-size:8px;color:var(--accent);letter-spacing:1px;}
 
-#aiOverlay{
-  display:none;
-  position:absolute;bottom:0;left:0;right:0;
-  background:linear-gradient(0deg,rgba(0,0,0,.92) 0%,transparent 100%);
-  padding:10px 10px 8px;pointer-events:none;
-}
-.ov-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px 6px;}
-.ov-cell{display:flex;flex-direction:column;align-items:center;gap:1px;}
-.ov-k{font-family:var(--mono);font-size:7px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.8px;}
-.ov-v{font-family:var(--mono);font-size:10px;font-weight:700;}
 
 /* Status chip on image */
-#statusChip{
-  display:none;
-  position:absolute;top:5px;right:5px;
-  font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.5px;
-  padding:3px 8px;border-radius:4px;
-  background:rgba(0,0,0,.75);border:1px solid;
-}
 
 /* Bottom charts area */
 .charts-area{
@@ -390,12 +373,7 @@ body.light::before { display:none; }
 
 /* Mode super button */
 #modeBtn{
-  width:100%;padding:8px;border-radius:7px;
-  border:1px solid var(--border);background:var(--surface);
-  font-family:var(--mono);font-weight:700;font-size:9px;letter-spacing:1px;
-  color:var(--muted);cursor:pointer;
-  display:flex;justify-content:center;align-items:center;gap:6px;
-  transition:all .2s;margin-bottom:4px;
+  justify-content:space-between;
 }
 #modeBtn.on-mode{
   background:linear-gradient(135deg,rgba(34,197,94,.15),rgba(22,163,74,.08));
@@ -596,6 +574,42 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
   justify-content:center;height:200px;gap:12px;
   color:var(--muted);font-family:var(--mono);font-size:9px;
 }
+
+/* Sensor chart mini-button */
+.sc-chart-btn {
+  width:100%;padding:4px 0;border-radius:5px;
+  border:1px solid var(--border);background:transparent;
+  font-family:var(--mono);font-size:7px;letter-spacing:.8px;font-weight:700;
+  color:var(--muted);cursor:pointer;
+  display:flex;justify-content:center;align-items:center;gap:4px;
+  transition:all .15s;flex-shrink:0;
+}
+.sc-chart-btn:hover{color:var(--accent);border-color:var(--accent);}
+
+/* Sensor chart modal */
+.sc-modal-overlay {
+  position:fixed;inset:0;background:rgba(0,0,0,.75);
+  display:flex;align-items:center;justify-content:center;
+  z-index:1100;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.sc-modal-overlay.open{opacity:1;pointer-events:all;}
+.sc-modal-box {
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  width:86vw;max-width:720px;padding:18px 20px;
+  display:flex;flex-direction:column;gap:12px;
+  transform:translateY(12px) scale(.97);transition:transform .2s;
+}
+.sc-modal-overlay.open .sc-modal-box{transform:none;}
+.sc-modal-hdr{display:flex;align-items:center;justify-content:space-between;}
+.sc-modal-title{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1.5px;}
+.sc-modal-close{
+  width:26px;height:26px;border-radius:6px;
+  border:1px solid var(--border);background:transparent;
+  color:var(--muted);cursor:pointer;font-size:13px;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.sc-modal-close:hover{color:var(--danger);border-color:var(--danger);}
+.sc-modal-canvas-wrap{position:relative;height:260px;}
 </style>
 </head>
 <body>
@@ -616,9 +630,7 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
     </div>
   </div>
   <div class="hdr-right">
-    <span class="badge-fb" id="fbBadge">☁ RTDB —</span>
-    <button class="hdr-btn" onclick="openModal()" title="Dữ liệu Firebase"><i class="fa-solid fa-database"></i></button>
-    <button class="hdr-btn" onclick="toggleTheme()" title="Đổi giao diện"><i class="fa-solid fa-moon" id="themeIcon"></i></button>
+    <span class="badge-fb" id="fbBadge" style="display:none;">☁ RTDB —</span>
     <div class="hdr-clock" id="clock">--:--:--</div>
   </div>
 </div>
@@ -629,69 +641,60 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
   <!-- ════ LEFT — SENSORS ════ -->
   <div class="col-left">
 
-    <!-- VPD -->
-    <div class="vpd-badge">
-      <div>
-        <div class="vpd-label">VPD</div>
-        <div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:1px;" id="vpd-status">—</div>
-      </div>
-      <div class="vpd-val" id="vpd-val">— kPa</div>
-    </div>
-
     <!-- Temperature -->
     <div class="sensor-card" id="card-temp">
       <div class="sc-top">
         <div class="sc-icon"><i class="fa-solid fa-temperature-half"></i></div>
-        <span class="sc-name">Nhiệt độ</span>
+        <span class="sc-name">Temperature</span>
       </div>
       <div>
         <div class="sc-val" id="temp">--</div>
         <div class="sc-sub">°C</div>
       </div>
       <div class="sc-bar-track"><div class="sc-bar-fill" id="bar-temp" style="width:0%;background:var(--accent);"></div></div>
-      <canvas class="sc-spark" id="spark-temp"></canvas>
+    <button class="sc-chart-btn" onclick="openRecentChart('temp')"><i class="fa-solid fa-chart-area"></i> VIEW DATA RECENTLY</button>
     </div>
 
     <!-- Humidity -->
     <div class="sensor-card" id="card-hum">
       <div class="sc-top">
         <div class="sc-icon blue"><i class="fa-solid fa-droplet"></i></div>
-        <span class="sc-name">Độ ẩm KK</span>
+        <span class="sc-name">Humidity</span>
       </div>
       <div>
         <div class="sc-val" id="hum">--</div>
         <div class="sc-sub">%</div>
       </div>
       <div class="sc-bar-track"><div class="sc-bar-fill" id="bar-hum" style="width:0%;background:var(--blue);"></div></div>
-      <canvas class="sc-spark" id="spark-hum"></canvas>
+    <button class="sc-chart-btn" onclick="openRecentChart('hum')"><i class="fa-solid fa-chart-area"></i> VIEW DATA RECENTLY</button>
     </div>
 
     <!-- Soil -->
     <div class="sensor-card" id="card-soil">
       <div class="sc-top">
         <div class="sc-icon warn"><i class="fa-solid fa-seedling"></i></div>
-        <span class="sc-name">Độ ẩm đất</span>
+        <span class="sc-name">Soil Moisture</span>
       </div>
       <div>
         <div class="sc-val" id="soil">--</div>
         <div class="sc-sub">%</div>
       </div>
       <div class="sc-bar-track"><div class="sc-bar-fill" id="bar-soil" style="width:0%;background:var(--warn);"></div></div>
-      <canvas class="sc-spark" id="spark-soil"></canvas>
+    <button class="sc-chart-btn" onclick="openRecentChart('soil')"><i class="fa-solid fa-chart-area"></i> VIEW DATA RECENTLY</button>
     </div>
 
     <!-- Lux -->
     <div class="sensor-card" id="card-lux">
       <div class="sc-top">
-        <div class="sc-icon purple"><i class="fa-solid fa-sun"></i></div>
-        <span class="sc-name">Ánh sáng</span>
+        <div class="sc-icon purple"><i class="fa-solid fa-lightbulb"></i></div>
+        <span class="sc-name">Light</span>
       </div>
       <div>
         <div class="sc-val" id="lux">--</div>
         <div class="sc-sub">lux</div>
       </div>
       <div class="sc-bar-track"><div class="sc-bar-fill" id="bar-lux" style="width:0%;background:var(--purple);"></div></div>
-      <canvas class="sc-spark" id="spark-lux"></canvas>
+    <button class="sc-chart-btn" onclick="openRecentChart('lux')"><i class="fa-solid fa-chart-area"></i> VIEW DATA RECENTLY</button>
     </div>
 
   </div>
@@ -708,32 +711,20 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
       <div class="cam-row">
         <!-- Live -->
         <div class="cam-box">
-          <img id="liveStream" src="http://10.11.49.221:5000/video_feed" alt="Live">
+          <img id="liveStream" src="http://100.115.32.29:5000/video_feed" alt="Live">
           <span class="cam-tag">● LIVE</span>
         </div>
         <!-- AI Result -->
         <div class="cam-box" id="aiBox">
           <div class="cam-placeholder" id="camPlaceholder">
-            <i class="fa-solid fa-robot"></i>
-            <span>Chưa có ảnh phân tích</span>
-            <span style="opacity:.5;font-size:7px;">Bấm CHỤP &amp; PHÂN TÍCH</span>
+            <span>No image</span>
+            <span style="opacity:.5;font-size:7px;">CAPTURE &amp; ANALYZE</span>
           </div>
           <img id="resultImg" src="" alt="AI" style="display:none;width:100%;height:100%;object-fit:cover;">
           <div id="aiSpinner">
             <div class="spin-ring"></div>
-            <span class="spin-label">ĐANG PHÂN TÍCH...</span>
+            <span class="spin-label">ANALYZING...</span>
           </div>
-          <div id="aiOverlay">
-            <div class="ov-grid">
-              <div class="ov-cell"><span class="ov-k">Status</span><span class="ov-v" id="ov-status" style="color:var(--accent);">--</span></div>
-              <div class="ov-cell"><span class="ov-k">Stress</span><span class="ov-v" id="ov-stress" style="color:var(--accent);">--</span></div>
-              <div class="ov-cell"><span class="ov-k">Pest/Wilt</span><span class="ov-v" id="ov-pw" style="color:var(--warn);">--</span></div>
-              <div class="ov-cell"><span class="ov-k">Tưới</span><span class="ov-v" id="ov-irr" style="color:var(--blue);">--</span></div>
-              <div class="ov-cell"><span class="ov-k">Phun</span><span class="ov-v" id="ov-spray" style="color:var(--purple);">--</span></div>
-              <div class="ov-cell"><span class="ov-k">Lá</span><span class="ov-v" id="ov-leaf" style="color:var(--text);">--</span></div>
-            </div>
-          </div>
-          <div id="statusChip"></div>
           <span class="cam-tag ai">✦ AI RESULT</span>
         </div>
       </div>
@@ -743,22 +734,15 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
     <div class="charts-area">
       <div class="chart-tabs-row">
         <div class="tab-group">
-          <button class="ctab active" id="tabSensor" onclick="switchTab('sensor')">📡 Sensor Live</button>
-          <button class="ctab" id="tabAI" onclick="switchTab('ai')">🤖 AI History</button>
+          <button class="ctab active" id="tabSensor">📡 Sensor Live</button>
         </div>
         <span class="chart-count" id="aiRowCount"></span>
       </div>
       <div class="chart-grid" id="sensorCharts">
-        <div class="chart-box"><h3>Nhiệt độ (°C)</h3><canvas id="tempChart"></canvas></div>
-        <div class="chart-box"><h3>Độ ẩm không khí (%)</h3><canvas id="humChart"></canvas></div>
-        <div class="chart-box"><h3>Độ ẩm đất (%)</h3><canvas id="soilChart"></canvas></div>
-        <div class="chart-box"><h3>Ánh sáng (lux)</h3><canvas id="luxChart"></canvas></div>
-      </div>
-      <div class="chart-grid" id="aiCharts" style="display:none;">
-        <div class="chart-box"><h3>Pest Severity</h3><canvas id="pestChart"></canvas></div>
-        <div class="chart-box"><h3>Wilt Severity</h3><canvas id="wiltChart"></canvas></div>
-        <div class="chart-box"><h3>Irrigation (s)</h3><canvas id="irrChart"></canvas></div>
-        <div class="chart-box"><h3>Spray (s)</h3><canvas id="sprayHistChart"></canvas></div>
+        <div class="chart-box"><h3>Temperature (°C)</h3><canvas id="tempChart"></canvas></div>
+        <div class="chart-box"><h3>Humidity (%)</h3><canvas id="humChart"></canvas></div>
+        <div class="chart-box"><h3>Soil Moisture (%)</h3><canvas id="soilChart"></canvas></div>
+        <div class="chart-box"><h3>Light Intensity (lux)</h3><canvas id="luxChart"></canvas></div>
       </div>
     </div>
 
@@ -769,30 +753,35 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
 
     <!-- Mode -->
     <div class="ctrl-section">
-      <div class="section-title">Chế độ hệ thống</div>
-      <button id="modeBtn" onclick="toggleMode()">
-        <i class="fa-solid fa-hand"></i> MANUAL MODE
+      <div class="section-title">System State</div>
+      <button id="modeBtn" class="dev-btn" onclick="toggleMode()">
+        <div class="dev-label"><div class="dev-indicator" id="modeIndicator"></div> <span id="modeBtnLabel">MANUAL MODE</span></div>
+        <i class="fa-solid fa-hand" id="modeIcon" style="font-size:10px;"></i>
+      </button>
+      <button id="themeBtn" class="dev-btn" onclick="toggleTheme()" style="margin-top:4px;">
+        <div class="dev-label"><div class="dev-indicator" style="background:var(--purple);box-shadow:0 0 5px var(--purple);"></div> <span id="themeBtnLabel">DARK MODE</span></div>
+        <i class="fa-solid fa-moon" id="themeIcon" style="font-size:10px;"></i>
       </button>
     </div>
 
     <!-- Devices -->
     <div class="ctrl-section">
-      <div class="section-title">Thiết bị</div>
+      <div class="section-title">Devices</div>
       <div class="dev-grid">
         <button id="lightBtn" class="dev-btn" onclick="toggle(4)">
-          <div class="dev-label"><div class="dev-indicator"></div> ĐÈN CHIẾU SÁNG</div>
-          <i class="fa-solid fa-sun" style="font-size:10px;"></i>
+          <div class="dev-label"><div class="dev-indicator"></div> LIGHT</div>
+          <i class="fa-solid fa-lightbulb" style="font-size:10px;"></i>
         </button>
         <button id="fanBtn" class="dev-btn" onclick="toggle(5)">
-          <div class="dev-label"><div class="dev-indicator"></div> QUẠT LÀM MÁT</div>
+          <div class="dev-label"><div class="dev-indicator"></div> FAN</div>
           <i class="fa-solid fa-fan" style="font-size:10px;"></i>
         </button>
         <button id="pumpBtn" class="dev-btn" onclick="toggle(6)">
-          <div class="dev-label"><div class="dev-indicator"></div> BƠM TƯỚI</div>
+          <div class="dev-label"><div class="dev-indicator"></div> IRRIGATION</div>
           <i class="fa-solid fa-droplet" style="font-size:10px;"></i>
         </button>
         <button id="sprayBtn" class="dev-btn" onclick="toggle(8)">
-          <div class="dev-label"><div class="dev-indicator"></div> PHUN SƯƠNG</div>
+          <div class="dev-label"><div class="dev-indicator"></div> SPRAY</div>
           <i class="fa-solid fa-spray-can-sparkles" style="font-size:10px;"></i>
         </button>
       </div>
@@ -800,50 +789,44 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
 
     <!-- AI Capture -->
     <div class="ctrl-section">
-      <div class="section-title">Phân tích AI</div>
+      <div class="section-title">AI Analysis</div>
       <button id="captureBtn" class="cap-btn" onclick="capture()">
-        <i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH
+        <i class="fa-solid fa-camera"></i> CAPTURE &amp; ANALYZE
       </button>
-      <button class="extra-btn" onclick="extraWater()">
-        <i class="fa-solid fa-faucet-drip"></i> TƯỚI BỔ SUNG NGAY
-      </button>
+
     </div>
 
     <!-- AI Results -->
     <div class="ctrl-section">
-      <div class="section-title">Kết quả AI</div>
+      <div class="section-title">AI Result</div>
       <div class="ai-result-grid">
-        <div class="ai-row"><span class="ai-k">Trạng thái</span><span class="ai-v ok" id="r-status">--</span></div>
-        <div class="ai-row"><span class="ai-k">Sâu bệnh</span><span class="ai-v" id="r-pest">--</span></div>
-        <div class="ai-row"><span class="ai-k">Héo lá</span><span class="ai-v" id="r-wilt">--</span></div>
+        <div class="ai-row"><span class="ai-k">Plant status</span><span class="ai-v ok" id="r-status">--</span></div>
+        <div class="ai-row"><span class="ai-k">Pest</span><span class="ai-v" id="r-pest">--</span></div>
+        <div class="ai-row"><span class="ai-k">Wilt</span><span class="ai-v" id="r-wilt">--</span></div>
         <div class="ai-row"><span class="ai-k">Stress</span><span class="ai-v" id="r-stress">--</span></div>
-        <div class="ai-row"><span class="ai-k">Tưới (s)</span><span class="ai-v" id="r-irr">--</span></div>
-        <div class="ai-row"><span class="ai-k">Phun (s)</span><span class="ai-v" id="r-spray">--</span></div>
+        <div class="ai-row"><span class="ai-k">Irrigation (s)</span><span class="ai-v" id="r-irr">--</span></div>
+        <div class="ai-row"><span class="ai-k">Spray (s)</span><span class="ai-v" id="r-spray">--</span></div>
       </div>
     </div>
 
     <!-- Scheduler Status -->
     <div class="ctrl-section">
-      <div class="section-title">Lịch tưới hôm nay</div>
+      <div class="section-title">Watering Schedule</div>
       <div id="schedList">
-        <div class="sched-row"><span class="sched-time">Đang tải...</span></div>
+        <div class="sched-row"><span class="sched-time">Loading...</span></div>
       </div>
       <div style="margin-top:6px;font-family:var(--mono);font-size:8px;color:var(--muted);">
-        AI chụp tiếp: <span id="nextAiSlot" style="color:var(--blue);">--</span>
+        AI capture next: <span id="nextAiSlot" style="color:var(--blue);">--</span>
       </div>
-      <div style="margin-top:4px;font-family:var(--mono);font-size:7px;color:var(--muted);">Cooldown tưới bổ sung</div>
       <div class="cooldown-track"><div class="cooldown-fill" id="cooldownBar" style="width:0%;"></div></div>
       <div style="font-family:var(--mono);font-size:7px;color:var(--muted);text-align:right;margin-top:2px;" id="cooldownText">—</div>
     </div>
 
     <!-- Database -->
     <div class="ctrl-section">
-      <div class="section-title">☁ Firebase Database</div>
-      <div class="db-stat-row"><span>Bản ghi</span><span id="db-count">--</span></div>
-      <div class="db-stat-row"><span>Cập nhật</span><span id="db-last">--</span></div>
-      <div class="db-stat-row"><span>Nguồn</span><span id="db-source" style="color:var(--accent);">--</span></div>
-      <button class="outline-btn" onclick="openModal()"><i class="fa-solid fa-table-list" style="font-size:9px;"></i> XEM DỮ LIỆU</button>
-      <button class="ghost-btn" onclick="loadAIHistory()"><i class="fa-solid fa-rotate" style="font-size:8px;"></i> Tải lại biểu đồ</button>
+      <div class="section-title">Data</div>
+      <button class="outline-btn" onclick="openModal()"><i class="fa-solid fa-table-list" style="font-size:9px;"></i> VIEW DATA</button>
+      <button class="ghost-btn" onclick="loadAIHistory()"><i class="fa-solid fa-rotate" style="font-size:8px;"></i> Reload Chart</button>
     </div>
 
     <div style="height:2px;flex-shrink:0;"></div>
@@ -883,6 +866,39 @@ table.dbt{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:
   </div>
 </div>
 
+
+<!-- ═══ SENSOR CHART MODAL ══════════════════════════════════════ -->
+<div class="sc-modal-overlay" id="scModalOverlay" onclick="scBgClick(event)">
+  <div class="sc-modal-box">
+    <div class="sc-modal-hdr">
+      <div class="sc-modal-title" id="scModalTitle">SENSOR DATA</div>
+      <button class="sc-modal-close" onclick="closeSensorChart()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="sc-modal-canvas-wrap">
+      <canvas id="scModalCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ RECENT DATA CHART MODAL ══════════════════════════════════════ -->
+<div class="sc-modal-overlay" id="recentModalOverlay" onclick="recentBgClick(event)">
+  <div class="sc-modal-box" style="max-width:820px;width:90vw;">
+    <div class="sc-modal-hdr">
+      <div>
+        <div class="sc-modal-title" id="recentModalTitle">RECENT DATA</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:3px;" id="recentModalMeta">Đang tải...</div>
+      </div>
+      <button class="sc-modal-close" onclick="closeRecentChart()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="recentModalLoading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:12px;color:var(--muted);font-family:var(--mono);font-size:9px;">
+      <div class="spin-ring"></div><span>Đang đọc Firebase...</span>
+    </div>
+    <div class="sc-modal-canvas-wrap" id="recentModalChartWrap" style="display:none;height:320px;">
+      <canvas id="recentModalCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ══════════════════════════════════════════════════
    CONFIG
@@ -892,7 +908,8 @@ const FB_NODE   = "ai_dataset";
 const TOKEN     = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4";
 const BASE      = "https://blynk.cloud/external/api";
 //const FLASK     = "http://localhost:5000";
-const FLASK     = "http://10.11.49.221:5000";
+//const FLASK    = "http://10.11.49.221:5000";
+const FLASK     = "http://100.115.32.29:5000";
 
 /* ── Firebase helpers ────────────────────────── */
 async function fbGet(node, limitLast = 0) {
@@ -908,15 +925,29 @@ let isDark = true;
 function toggleTheme() {
   isDark = !isDark;
   document.body.classList.toggle("light", !isDark);
-  document.getElementById("themeIcon").className = isDark ? "fa-solid fa-moon" : "fa-solid fa-sun";
+  _applyThemeBtn();
   updateChartColors();
   localStorage.setItem("gh_theme", isDark ? "dark" : "light");
+}
+function _applyThemeBtn(){
+  document.getElementById("themeIcon").className = isDark ? "fa-solid fa-moon" : "fa-solid fa-sun";
+  const lbl = document.getElementById("themeBtnLabel");
+  if(lbl) lbl.textContent = isDark ? "DARK MODE" : "LIGHT MODE";
+  const btn = document.getElementById("themeBtn");
+  if(btn){
+    const ind = btn.querySelector(".dev-indicator");
+    if(isDark){
+      ind.style.background="var(--purple)";ind.style.boxShadow="0 0 5px var(--purple)";
+    } else {
+      ind.style.background="var(--warn)";ind.style.boxShadow="0 0 5px var(--warn)";
+    }
+  }
 }
 (function(){
   if(localStorage.getItem("gh_theme") === "light"){
     isDark = false; document.body.classList.add("light");
-    document.getElementById("themeIcon").className = "fa-solid fa-sun";
   }
+  _applyThemeBtn();
 })();
 
 /* ── CLOCK ───────────────────────────────────── */
@@ -936,35 +967,16 @@ document.getElementById("clock").textContent = new Date().toLocaleTimeString("vi
 const sparkData = { temp:[], hum:[], soil:[], lux:[] };
 const sparkCharts = {};
 
-function mkSpark(id, color) {
-  const ctx = document.getElementById(id).getContext("2d");
-  return new Chart(ctx, {
-    type: "line",
-    data: { labels: [], datasets: [{ data: [], borderColor: color, backgroundColor: "transparent", tension: 0.4, pointRadius: 0, borderWidth: 1.5 }] },
-    options: {
-      plugins:{ legend:{display:false}, tooltip:{enabled:false} },
-      scales:{ x:{display:false}, y:{display:false} },
-      responsive:true, maintainAspectRatio:false, animation:{duration:200}
-    }
-  });
-}
+function mkSpark(id, color) { /* sparklines removed */ }
 
 document.addEventListener("DOMContentLoaded", () => {
-  sparkCharts.temp = mkSpark("spark-temp","#22c55e");
-  sparkCharts.hum  = mkSpark("spark-hum", "#38bdf8");
-  sparkCharts.soil = mkSpark("spark-soil","#fbbf24");
-  sparkCharts.lux  = mkSpark("spark-lux", "#c084fc");
+  // sparklines removed — no canvas in sensor cards
 });
 
 function pushSpark(key, val) {
   const arr = sparkData[key];
   arr.push(val);
   if (arr.length > 30) arr.shift();
-  const c = sparkCharts[key];
-  if (!c) return;
-  c.data.labels = arr.map((_,i)=>i);
-  c.data.datasets[0].data = arr;
-  c.update();
 }
 
 /* ══════════════════════════════════════════════════
@@ -979,7 +991,6 @@ const applyCC = c => {
 };
 function updateChartColors() {
   [cT,cH,cS,cL].forEach(applyCC);
-  if(pestChart)[pestChart,wiltChart,irrChart,sprayHistChart].forEach(applyCC);
 }
 
 let lb=[],tD=[],hD=[],sD=[],lD=[];
@@ -1009,78 +1020,25 @@ function pushC(t,h,s,l){
 }
 
 /* ══════════════════════════════════════════════════
-   AI HISTORY CHARTS
+   AI HISTORY — stubs kept for loadAIHistory calls in capture flow
 ══════════════════════════════════════════════════ */
 let pestChart=null, wiltChart=null, irrChart=null, sprayHistChart=null;
-function mkAI(id,color){
-  const {grid,tick} = gcc();
-  return new Chart(document.getElementById(id),{
-    type:"line",
-    data:{labels:[],datasets:[{data:[],borderColor:color,backgroundColor:color+"18",tension:0.3,fill:true,pointRadius:1.5,pointHoverRadius:4,borderWidth:1.5}]},
-    options:{
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{ticks:{color:tick,font:{size:6},maxTicksLimit:6},grid:{color:grid}},
-        y:{ticks:{color:tick,font:{size:7},maxTicksLimit:4},grid:{color:grid}}
-      },
-      responsive:true, maintainAspectRatio:false, animation:{duration:300}
-    }
-  });
-}
-function initAICharts(){
-  if(pestChart) return;
-  pestChart=mkAI("pestChart","#f87171"); wiltChart=mkAI("wiltChart","#fbbf24");
-  irrChart=mkAI("irrChart","#38bdf8"); sprayHistChart=mkAI("sprayHistChart","#c084fc");
-}
+function initAICharts(){ /* removed */ }
 async function loadAIHistory(){
-  initAICharts();
-  document.getElementById("db-source").textContent="loading…";
+  // update db panel meta only
   try {
-    const raw = await fbGet(FB_NODE, 200);
+    const raw = await fbGet(FB_NODE, 50);
     if(raw && typeof raw==="object"){
       const rows = Object.values(raw);
-      const labels = rows.map((r,i)=>{
-        const ts=String(r.timestamp||"");
-        const m=ts.match(/(\d{2})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-        return m?`${m[4]}:${m[5]}`:`#${i+1}`;
-      });
-      const fill=(c,f)=>{c.data.labels=labels;c.data.datasets[0].data=rows.map(r=>parseFloat(r[f])||0);c.update();};
-      fill(pestChart,"pest"); fill(wiltChart,"wilt"); fill(irrChart,"irrigation"); fill(sprayHistChart,"spray");
-      document.getElementById("db-count").textContent=rows.length;
       document.getElementById("db-last").textContent=new Date().toLocaleTimeString("vi-VN");
       document.getElementById("db-source").textContent="Realtime DB";
-      document.getElementById("aiRowCount").textContent=rows.length+" records";
       document.getElementById("fbBadge").textContent="☁ RTDB OK";
       document.getElementById("fbBadge").className="badge-fb ok";
-      return;
     }
   } catch(e){
-    console.warn("RTDB chart fail:",e);
     document.getElementById("fbBadge").className="badge-fb err";
     document.getElementById("fbBadge").textContent="☁ RTDB ERR";
   }
-  try {
-    const rows = await (await fetch(`${FLASK}/csv_data`)).json();
-    if(Array.isArray(rows)&&rows.length){
-      const labels=rows.map((_,i)=>`#${i+1}`);
-      const fill=(c,f)=>{c.data.labels=labels;c.data.datasets[0].data=rows.map(r=>parseFloat(r[f])||0);c.update();};
-      fill(pestChart,"pest"); fill(wiltChart,"wilt"); fill(irrChart,"irrigation"); fill(sprayHistChart,"spray");
-      document.getElementById("db-count").textContent=rows.length;
-      document.getElementById("db-source").textContent="Flask CSV";
-    } else { document.getElementById("db-source").textContent="No data"; }
-  } catch { document.getElementById("db-source").textContent="Unavailable"; }
-}
-
-/* ── TAB SWITCH ──────────────────────────────── */
-let currentTab="sensor";
-function switchTab(tab){
-  currentTab=tab;
-  document.getElementById("tabSensor").classList.toggle("active",tab==="sensor");
-  document.getElementById("tabAI").classList.toggle("active",tab==="ai");
-  document.getElementById("sensorCharts").style.display=tab==="sensor"?"grid":"none";
-  document.getElementById("aiCharts").style.display=tab==="ai"?"grid":"none";
-  if(tab==="ai") loadAIHistory();
-  else document.getElementById("aiRowCount").textContent="";
 }
 
 /* ══════════════════════════════════════════════════
@@ -1139,25 +1097,11 @@ async function updSensors() {
     pushSpark("lux",lf);
   }
 
-  /* VPD calc client-side */
-  if(!isNaN(tf)&&!isNaN(hf)){
-    const es=0.6108*Math.exp(17.27*tf/(tf+237.3));
-    const vpd=Math.max(0,es*(1-hf/100));
-    document.getElementById("vpd-val").textContent=vpd.toFixed(2)+" kPa";
-    const vs=document.getElementById("vpd-status");
-    if(vpd>1.5){vs.textContent="⚠ Bốc hơi cao";vs.style.color="var(--danger)";}
-    else if(vpd<0.5){vs.textContent="✓ Độ ẩm tốt";vs.style.color="var(--accent)";}
-    else{vs.textContent="→ Bình thường";vs.style.color="var(--muted)";}
-  }
-
-  /* Alerts */
-  if(!isNaN(sf)&&sf<35) triggerAlert(`⚠ ĐỘ ẨM ĐẤT THẤP: ${sf.toFixed(0)}% — Cần tưới ngay!`);
-  if(!isNaN(tf)&&tf>35) triggerAlert(`🌡 NHIỆT ĐỘ CAO: ${tf.toFixed(1)}°C — Kiểm tra hệ thống làm mát!`);
 }
 
 /* Device buttons */
 const CFG = {
-  lightBtn:{onClass:"on-light",icon:"fa-sun"},
+  lightBtn:{onClass:"on-light",icon:"fa-lightbulb"},
   fanBtn:  {onClass:"on-fan",  icon:"fa-fan"},
   pumpBtn: {onClass:"on-pump", icon:"fa-droplet"},
   sprayBtn:{onClass:"on-spray",icon:"fa-spray-can-sparkles"},
@@ -1174,10 +1118,21 @@ async function updBtns() {
   const [l,f,p,sp,m] = await Promise.all([bg(4),bg(5),bg(6),bg(8),bg(9)]);
   isAuto=m==="1";
   const mb=document.getElementById("modeBtn");
-  mb.className=isAuto?"on-mode":"";
-  mb.innerHTML=isAuto
-    ?'<i class="fa-solid fa-robot"></i> AUTO MODE — ĐANG CHẠY'
-    :'<i class="fa-solid fa-hand"></i> MANUAL MODE';
+  const ind=document.getElementById("modeIndicator");
+  const lbl=document.getElementById("modeBtnLabel");
+  const ico=document.getElementById("modeIcon");
+  mb.className="dev-btn"+(isAuto?" on-mode":"");
+  if(isAuto){
+    ind.style.background="var(--accent)"; ind.style.boxShadow="0 0 5px var(--accent)";
+    ind.style.animation="pulse 1.5s infinite";
+    lbl.textContent="AUTO MODE";
+    ico.className="fa-solid fa-robot";
+  } else {
+    ind.style.background="var(--muted2)"; ind.style.boxShadow="none";
+    ind.style.animation="none";
+    lbl.textContent="MANUAL MODE";
+    ico.className="fa-solid fa-hand";
+  }
   applyBtn("lightBtn",l); applyBtn("fanBtn",f);
   applyBtn("pumpBtn",p); applyBtn("sprayBtn",sp);
 }
@@ -1215,32 +1170,12 @@ function showRes(d){
   img.style.display="block";
 
   const stress=d.stress_index??0;
-  const sc=stress>0.35?"var(--danger)":stress>0.05?"var(--warn)":"var(--accent)";
   const st=d.plant_status||d.status||"--";
-  const stc=st.includes("nặng")?"var(--danger)":(st.includes("nhẹ")||st.includes("trung"))?"var(--warn)":"var(--accent)";
-
-  // overlay
-  document.getElementById("ov-status").textContent=st;
-  document.getElementById("ov-status").style.color=stc;
-  document.getElementById("ov-stress").textContent=stress.toFixed(3);
-  document.getElementById("ov-stress").style.color=sc;
-  document.getElementById("ov-pw").textContent=`${d.pest_count??0}/${d.wilt_count??0}`;
-  document.getElementById("ov-irr").textContent=(d.irrigation??"-")+"s";
-  document.getElementById("ov-spray").textContent=(d.spray??"-")+"s";
-  document.getElementById("ov-leaf").textContent=d.leaf_count??"-";
-  document.getElementById("aiOverlay").style.display="block";
   document.getElementById("capTime").textContent=d.time||"";
-
-  // status chip
-  const chip=document.getElementById("statusChip");
-  chip.style.display="block";
-  chip.textContent=st;
-  chip.style.borderColor=stc.replace("var(","").replace(")","");
-  chip.style.color=stc;
 
   // right panel
   document.getElementById("r-status").textContent=st;
-  document.getElementById("r-status").className="ai-v "+(st.includes("nặng")?"danger":st.includes("nhẹ")||st.includes("trung")?"warn":"ok");
+  document.getElementById("r-status").className = "ai-v " + (st.includes("severe") ? "danger" :st.includes("mild") || st.includes("moderate") ? "warn" :"ok");
   document.getElementById("r-pest").textContent=d.pest_count??"-";
   document.getElementById("r-wilt").textContent=d.wilt_count??"-";
   document.getElementById("r-stress").textContent=stress.toFixed(3);
@@ -1248,10 +1183,6 @@ function showRes(d){
   document.getElementById("r-irr").textContent=(d.irrigation??"-")+"s";
   document.getElementById("r-spray").textContent=(d.spray??"-")+"s";
 
-  // alert if stressed
-  if(stress>0.35) triggerAlert(`🌿 AI PHÁT HIỆN STRESS NẶNG (${stress.toFixed(3)}) — ${st}`);
-
-  if(currentTab==="ai") setTimeout(loadAIHistory,2000);
   if(document.getElementById("modalOverlay").classList.contains("open")){allRows=[];setTimeout(fetchModalData,2500);}
   resetCap();
 }
@@ -1260,7 +1191,7 @@ function resetCap(){
   isInferring=false;
   const btn=document.getElementById("captureBtn");
   btn.disabled=false; btn.classList.remove("busy");
-  btn.innerHTML='<i class="fa-solid fa-camera"></i> CHỤP &amp; PHÂN TÍCH';
+  btn.innerHTML='<i class="fa-solid fa-camera"></i> CAPTURE &amp; ANALYZE';
   document.getElementById("aiSpinner").style.display="none";
 }
 function pollRes(){}  // stub
@@ -1293,7 +1224,6 @@ async function updScheduler(){
     const remaining=d.pump_cooldown_remaining||0;
     const pct=Math.min(100,remaining/300*100);
     document.getElementById("cooldownBar").style.width=pct+"%";
-    document.getElementById("cooldownText").textContent=remaining>0?`${Math.round(remaining)}s còn lại`:"Sẵn sàng";
   } catch(e){ /* Flask có thể chưa có route này */ }
 }
 
@@ -1418,6 +1348,211 @@ function exportCSV(){
 }
 document.addEventListener("keydown",e=>{if(e.key==="Escape") closeModal();});
 
+
+/* ══════════════════════════════════════════════════
+   RECENT DATA CHART MODAL (fetches last 24h from Firebase)
+══════════════════════════════════════════════════ */
+const RC_CFG = {
+  temp: { label:"Recent Temperature (°C)", color:"#22c55e", field:"temp",  unit:"°C"   },
+  hum:  { label:"Recent Humidity (%)",      color:"#38bdf8", field:"hum",   unit:"%"    },
+  soil: { label:"Recent Soil Moisture (%)", color:"#fbbf24", field:"soil",  unit:"%"    },
+  lux:  { label:"Recent Light (lux)",       color:"#c084fc", field:"lux",   unit:"lux"  },
+};
+let recentChart = null;
+
+function fmtTsLabel(ts){
+  const s=String(ts||"");
+  const m=s.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  if(m) return `${m[4]}:${m[5]}`;
+  return s.slice(0,5)||"--";
+}
+
+async function openRecentChart(key){
+  const cfg = RC_CFG[key];
+  document.getElementById("recentModalTitle").textContent = "📊 " + cfg.label;
+  document.getElementById("recentModalMeta").textContent = "Đang tải dữ liệu 24h gần nhất...";
+  document.getElementById("recentModalLoading").style.display = "flex";
+  document.getElementById("recentModalChartWrap").style.display = "none";
+  document.getElementById("recentModalOverlay").classList.add("open");
+
+  if(recentChart){ recentChart.destroy(); recentChart=null; }
+
+  try {
+    // Fetch last 500 records — filter to past 24h client-side
+    const raw = await fbGet(FB_NODE, 500);
+    if(!raw || typeof raw !== "object") throw new Error("no data");
+
+    const now = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    // Parse timestamp from key pattern YYYYMMDD_HHMMSS
+    function tsToMs(ts){
+      const s=String(ts||"");
+      const m=s.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+      if(!m) return 0;
+      return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`).getTime();
+    }
+
+    const allRows = Object.values(raw)
+      .filter(r => {
+        const t = tsToMs(r.timestamp);
+        return t > 0 && (now - t) <= oneDayMs;
+      })
+      .sort((a,b) => tsToMs(a.timestamp) - tsToMs(b.timestamp));
+
+    const labels = allRows.map(r => fmtTsLabel(r.timestamp));
+    const values = allRows.map(r => {
+      const v = parseFloat(r[cfg.field]);
+      return isNaN(v) ? null : v;
+    });
+
+    document.getElementById("recentModalMeta").textContent =
+      `${allRows.length} điểm dữ liệu · 24h gần nhất · ${new Date().toLocaleTimeString("vi-VN")}`;
+
+    document.getElementById("recentModalLoading").style.display = "none";
+    document.getElementById("recentModalChartWrap").style.display = "block";
+
+    const {grid,tick} = gcc();
+    const ctx = document.getElementById("recentModalCanvas").getContext("2d");
+
+    // Build gradient fill like the example image
+    const gradFill = ctx.createLinearGradient(0, 0, 0, 320);
+    gradFill.addColorStop(0,   cfg.color + "55");
+    gradFill.addColorStop(0.6, cfg.color + "18");
+    gradFill.addColorStop(1,   cfg.color + "00");
+
+    recentChart = new Chart(ctx, {
+      type:"line",
+      data:{
+        labels,
+        datasets:[{
+          label: cfg.label,
+          data: values,
+          borderColor: cfg.color,
+          backgroundColor: gradFill,
+          tension: 0.4,
+          fill: true,
+          pointRadius: labels.length < 40 ? 2 : 0,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+          spanGaps: true,
+        }]
+      },
+      options:{
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor: "rgba(10,20,13,.92)",
+            borderColor: cfg.color + "55",
+            borderWidth: 1,
+            titleColor: tick,
+            bodyColor: cfg.color,
+            titleFont:{family:"Space Mono",size:8},
+            bodyFont:{family:"Space Mono",size:11},
+            callbacks:{
+              title: ctx => ctx[0].label,
+              label: ctx => (ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) + " " + cfg.unit : "--")
+            }
+          }
+        },
+        scales:{
+          x:{
+            ticks:{color:tick, font:{size:8, family:"Space Mono"}, maxTicksLimit:10, maxRotation:0},
+            grid:{color:grid},
+            title:{display:true, text:"Time", color:tick, font:{size:8, family:"Space Mono"}}
+          },
+          y:{
+            ticks:{color:tick, font:{size:8, family:"Space Mono"}, maxTicksLimit:7},
+            grid:{color:grid},
+            title:{display:true, text:"Values", color:tick, font:{size:8, family:"Space Mono"}}
+          }
+        },
+        responsive:true, maintainAspectRatio:false, animation:{duration:400}
+      }
+    });
+
+  } catch(e) {
+    console.warn("Recent chart fail:",e);
+    document.getElementById("recentModalLoading").innerHTML =
+      '<span style="color:var(--danger)">❌ Không thể tải dữ liệu Firebase.</span>';
+  }
+}
+
+function closeRecentChart(){
+  document.getElementById("recentModalOverlay").classList.remove("open");
+  if(recentChart){ recentChart.destroy(); recentChart=null; }
+}
+function recentBgClick(e){
+  if(e.target===document.getElementById("recentModalOverlay")) closeRecentChart();
+}
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeRecentChart(); closeSensorChart(); } });
+
+/* ══════════════════════════════════════════════════
+   SENSOR CHART MODAL (live sparkline popup — kept for legacy)
+══════════════════════════════════════════════════ */
+const SC_CFG = {
+  temp: { label:"Temperature (°C)", color:"#22c55e", min:10,  max:45,  unit:"°C"   },
+  hum:  { label:"Humidity (%)",      color:"#38bdf8", min:0,   max:100, unit:"%"    },
+  soil: { label:"Soil Moisture (%)", color:"#fbbf24", min:0,   max:100, unit:"%"    },
+  lux:  { label:"Light (lux)",       color:"#c084fc", min:0,   max:12000, unit:"lux" },
+};
+let scChart = null;
+
+function openSensorChart(key){
+  const cfg = SC_CFG[key];
+  const arr = sparkData[key] || [];
+  document.getElementById("scModalTitle").textContent = "📊 " + cfg.label;
+  document.getElementById("scModalOverlay").classList.add("open");
+
+  // destroy previous chart
+  if(scChart){ scChart.destroy(); scChart=null; }
+
+  const {grid,tick} = gcc();
+  const ctx = document.getElementById("scModalCanvas").getContext("2d");
+  const labels = arr.map((_,i)=> "-"+(arr.length-1-i)+"s");
+  scChart = new Chart(ctx, {
+    type:"line",
+    data:{
+      labels,
+      datasets:[{
+        label: cfg.label,
+        data: arr,
+        borderColor: cfg.color,
+        backgroundColor: cfg.color+"22",
+        tension:0.4, fill:true,
+        pointRadius: arr.length < 20 ? 3 : 0,
+        borderWidth:2,
+      }]
+    },
+    options:{
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label: ctx => ctx.parsed.y.toFixed(1) + " " + cfg.unit
+          }
+        }
+      },
+      scales:{
+        x:{ticks:{color:tick,font:{size:8},maxTicksLimit:8},grid:{color:grid}},
+        y:{
+          min: cfg.min, max: cfg.max,
+          ticks:{color:tick,font:{size:8},maxTicksLimit:6},
+          grid:{color:grid}
+        }
+      },
+      responsive:true, maintainAspectRatio:false, animation:{duration:300}
+    }
+  });
+}
+
+function closeSensorChart(){
+  document.getElementById("scModalOverlay").classList.remove("open");
+  if(scChart){ scChart.destroy(); scChart=null; }
+}
+function scBgClick(e){
+  if(e.target===document.getElementById("scModalOverlay")) closeSensorChart();
+}
 /* ══════════════════════════════════════════════════
    BOOT
 ══════════════════════════════════════════════════ */
@@ -1425,7 +1560,6 @@ setInterval(updSensors, 2000);
 setInterval(updBtns,    2000);
 setInterval(updScheduler, 10000);
 updSensors(); updBtns(); updScheduler();
-setTimeout(()=>{ initAICharts(); loadAIHistory(); }, 2500);
 </script>
 </body>
 </html>

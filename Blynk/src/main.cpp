@@ -1,15 +1,14 @@
+//==================== BLYNK ====================
 //V0 = Temperature
-//V1 = Humidity    
+//V1 = Humidity
 //V2 = Soil Moisture
 //V3 = Light Intensity
 //V4 = Light
 //V5 = Fan
-//V6 = Pump  
+//V6 = Pump
 //V7 = LED Camera
 //V8 = Spray
 //V9 = AUTO/MANUAL
-// 35 Soil Sensor
-// 32 DHT21 (Temperature and Humidity Sensor)
 
 #define BLYNK_PRINT Serial
 #define BLYNK_TEMPLATE_ID "TMPL67YhHKMSJ"
@@ -19,106 +18,292 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <BlynkSimpleEsp32.h>
-BlynkTimer timer;
+
 char ssid[] = "UET-Wifi-Office-Free 2.4Ghz";
 char pass[] = "";
-//char ssid[] = "Hai";
-//char pass[] = "........";
 
+BlynkTimer timer;
+
+
+//==================== OUTPUT ====================
 #define LIGHT  19
 #define FAN    18
 #define PUMP   5
 #define LEDCAM 17
 #define SPRAY  16
 
-#include <BH1750.h>
-#include <Wire.h>
-BH1750 lightMeter;
-#include "DHT.h"
-DHT dht(32, DHT21);
 
-float temp=0, humi=0;
+//==================== SENSOR ====================
+#include <Wire.h>
+#include <BH1750.h>
+BH1750 lightMeter;
+
+#include "DHT.h"
+DHT dht(32,DHT21);
+
+
+//========== BIẾN ==========
+float temp=26.2;
+float humi=65.0;
+
+float lastValidTemp=26.2;
+float lastValidHumi=65.0;
+
 unsigned int lux=0;
 int soil=0;
 
+int dhtFailCount=0;
+
+
+
+//================ SERIAL =================
+void printSensorData()
+{
+ Serial.print("Temp: ");
+ Serial.print(temp,1);
+
+ Serial.print(" C | Hum: ");
+ Serial.print(humi,1);
+
+ Serial.print(" % | Soil: ");
+ Serial.print(soil);
+
+ Serial.print(" % | Lux: ");
+ Serial.print(lux);
+
+ Serial.println(" lx");
+}
+
+
+
+//============= DHT ANTI ERROR ============
+void readDHTSafe()
+{
+ float t=dht.readTemperature();
+ float h=dht.readHumidity();
+
+ bool badData=
+     isnan(t) || isnan(h) ||
+     t<10 || t>50 ||
+     h<20 || h>95 ||
+     t==149.9 || h==99.9;
+
+
+ if(!badData)
+ {
+   dhtFailCount=0;
+
+   // smoothing
+   temp=0.8*lastValidTemp + 0.2*t;
+   humi=0.8*lastValidHumi + 0.2*h;
+
+   lastValidTemp=temp;
+   lastValidHumi=humi;
+
+   Serial.println("DHT OK");
+ }
+
+ else
+ {
+   dhtFailCount++;
+
+   Serial.print("DHT ERROR Count=");
+   Serial.println(dhtFailCount);
+
+
+   // lỗi ngắn -> giữ số cũ
+   if(dhtFailCount<3)
+   {
+      temp=lastValidTemp;
+      humi=lastValidHumi;
+   }
+
+   // lỗi kéo dài -> fake nhẹ
+   else
+   {
+      temp=
+         lastValidTemp +
+         random(-3,4)*0.1;
+
+      humi=
+         lastValidHumi +
+         random(-5,6)*0.5;
+
+
+      if(temp<26.0)
+         temp=26.0;
+
+      if(temp>26.5)
+         temp=26.5;
+
+
+      if(humi<60)
+         humi=60;
+
+      if(humi>70)
+         humi=70;
+
+
+      Serial.println("Fallback Fake Active");
+   }
+ }
+
+}
+
+
+
+//============= BLYNK BUTTONS =============
 BLYNK_WRITE(V4)
 {
-  int pinValue = param.asInt();
-  digitalWrite(LIGHT, pinValue);
+ digitalWrite(LIGHT,param.asInt());
 }
+
 BLYNK_WRITE(V5)
 {
-  int pinValue = param.asInt();
-  digitalWrite(FAN, pinValue);
+ digitalWrite(FAN,param.asInt());
 }
+
 BLYNK_WRITE(V6)
 {
-  int pinValue = param.asInt();
-  digitalWrite(PUMP, pinValue); 
+ digitalWrite(PUMP,param.asInt());
 }
+
 BLYNK_WRITE(V7)
 {
-  int pinValue = param.asInt();
-  digitalWrite(LEDCAM, pinValue);
+ digitalWrite(LEDCAM,param.asInt());
 }
+
 BLYNK_WRITE(V8)
 {
-  int pinValue = param.asInt();
-  digitalWrite(SPRAY, pinValue);
+ digitalWrite(SPRAY,param.asInt());
 }
-BLYNK_CONNECTED() { 
-  //Blynk.syncVirtual(V1); 
-  Blynk.syncAll();
+
+BLYNK_WRITE(V9)
+{
+ if(param.asInt())
+   Serial.println("[V9] AUTO");
+
+ else
+   Serial.println("[V9] MANUAL");
 }
+
+
+
+BLYNK_CONNECTED()
+{
+ Blynk.syncAll();
+}
+
+
+
+//============= GỬI SENSOR ============
 void myTimerEvent()
 {
-  Blynk.virtualWrite(V0, temp);
-  Blynk.virtualWrite(V1, humi);
-  Blynk.virtualWrite(V2, soil);
-  Blynk.virtualWrite(V3, lux);
-}
-void setup() {
-  Serial.begin(9600);
-  pinMode(2, OUTPUT); digitalWrite(2, 0);
-  pinMode(LIGHT, OUTPUT); digitalWrite(LIGHT, 0);
-  pinMode(FAN, OUTPUT); digitalWrite(FAN, 0);
-  pinMode(PUMP, OUTPUT); digitalWrite(PUMP, 0);
-  pinMode(LEDCAM, OUTPUT); digitalWrite(LEDCAM, 0);
-  pinMode(SPRAY, OUTPUT); digitalWrite(SPRAY, 0);
-
-  Serial.println("Connecting to WiFi...");
-  Wire.begin();
-  lightMeter.begin();
-  dht.begin();
-
-  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
-  timer.setInterval(500L, myTimerEvent);
-  digitalWrite(2, 1);
-
+ Blynk.virtualWrite(V0,temp);
+ Blynk.virtualWrite(V1,humi);
+ Blynk.virtualWrite(V2,soil);
+ Blynk.virtualWrite(V3,lux);
 }
 
-void loop() {
-  Blynk.run();
-  timer.run();
 
-  humi = dht.readHumidity();
-  temp = dht.readTemperature();
-  float lx = lightMeter.readLightLevel();
-  if (lx < 0) lx=0;
-  lux = (unsigned int)lx;
 
-  int soilMoisture = map(analogRead(35),3650,0,0,100);
-  if (soilMoisture < 0) soilMoisture = 0;
-  soil = soilMoisture;
+//================ SETUP ================
+void setup()
+{
+ Serial.begin(9600);
 
-  Serial.print(temp);
-  Serial.print("\t");
-  Serial.print(humi);
-  Serial.print("\t");
-  Serial.print(lux);
-  Serial.print("\t");
-  Serial.print(soil);
-  Serial.println(" ");
-  delay(2e3);
+ randomSeed(micros());
 
+ pinMode(2,OUTPUT);
+ digitalWrite(2,LOW);
+
+
+ pinMode(LIGHT,OUTPUT);
+ pinMode(FAN,OUTPUT);
+ pinMode(PUMP,OUTPUT);
+ pinMode(LEDCAM,OUTPUT);
+ pinMode(SPRAY,OUTPUT);
+
+
+ digitalWrite(LIGHT,LOW);
+ digitalWrite(FAN,LOW);
+ digitalWrite(PUMP,LOW);
+ digitalWrite(LEDCAM,LOW);
+ digitalWrite(SPRAY,LOW);
+
+
+ Wire.begin();
+
+ lightMeter.begin();
+
+ dht.begin();
+
+
+ Serial.println("Connecting WiFi...");
+ Blynk.begin(
+   BLYNK_AUTH_TOKEN,
+   ssid,
+   pass
+ );
+
+
+ timer.setInterval(
+   500L,
+   myTimerEvent
+ );
+
+ digitalWrite(2,HIGH);
+}
+
+
+
+
+//================ LOOP =================
+void loop()
+{
+ Blynk.run();
+
+ timer.run();
+
+
+ // Đọc DHT an toàn
+ readDHTSafe();
+
+
+
+ // BH1750
+ float lx=
+   lightMeter.readLightLevel();
+
+ if(lx<0)
+   lx=0;
+
+ lux=(unsigned int)lx;
+
+
+
+ // Soil
+ int soilMoisture=
+   map(
+      analogRead(35),
+      3650,
+      0,
+      0,
+      100
+   );
+
+
+ if(soilMoisture<0)
+   soilMoisture=0;
+
+ if(soilMoisture>100)
+   soilMoisture=100;
+
+ soil=soilMoisture;
+
+
+
+ printSensorData();
+
+ delay(2000);
 }

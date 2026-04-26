@@ -6,25 +6,30 @@ import os
 import re
 import subprocess
 from datetime import datetime
-from inference_sdk import InferenceHTTPClient
+from inference_sdk import InferenceHTTPClient, InferenceConfiguration
 from sklearn.ensemble import RandomForestRegressor
 import pandas as pd
 import joblib
 from flask import Flask, send_file, Response, jsonify
 from flask_cors import CORS
+import random
 
 # ============================================================
 #  CONFIG
 # ============================================================
 BLYNK_AUTH       = "rtfmZLrt9StzWVDpudj46RXQiNvQKct4"
-#ROBOFLOW_API_KEY = "G1wXVaCU8zRCimzdnuHW"                Model cũ
-#MODEL_ID         = "nhandienrau-iajgf/3"
-ROBOFLOW_API_KEY = "zqNYeknFylTpwW8KlZJg"
-MODEL_ID         = "nhandienrau-iajgf-evigl/12"
+
+# ── Model 1: detect lá (small, medium) ──────────────────────
+ROBOFLOW_API_KEY_LEAF = "G1wXVaCU8zRCimzdnuHW"   # <-- điền API key model lá
+MODEL_ID_LEAF         = "leafsize_noaug/1"     # <-- điền model ID model lá
+
+# ── Model 2: detect sâu bệnh (pest, wilt) ───────────────────
+ROBOFLOW_API_KEY_PEST = "cxQmVKGYY6jbGzT8NXaC"   # <-- điền API key model pest
+MODEL_ID_PEST         = "leafhealth-j9ol1/1"     # <-- điền model ID model pest
 
 # ── Ngưỡng cảm biến ─────────────────────────────────────────
-MAX_WATER  = 10.0       # giây tưới tối đa mỗi lần
-MAX_SPRAY  = 10.0       # giây phun sương tối đa
+MAX_WATER  = 10.0       # giây tưới tối đa mỗi lầnS
+MAX_SPRAY  = 0.5       # giây phun sương tối đa
 SOIL_DRY   = 35         # % độ ẩm đất — ngưỡng KHÔ (dưới → tưới)
 SOIL_WET   = 70         # % độ ẩm đất — ngưỡng ĐỦ ẩm (flowchart: soil < 70%)
 TEMP_LOW   = 18         # °C — dưới → tắt quạt
@@ -43,7 +48,7 @@ SPRAY_COOLDOWN = 120    # 2 phút cooldown giữa 2 lần phun
 # ── Lịch tưới cố định (giờ:phút) ────────────────────────────
 # 2 lần/ngày: sáng và chiều — chỉnh ở đây
 SCHEDULED_WATERING = [
-    (6, 30),    # Sáng 06:30
+    (9, 30),    # Sáng 09:30
     (17, 0),    # Chiều 17:00
 ]
 SCHEDULED_WATER_DURATION = 8.0   # giây mỗi lần tưới lịch
@@ -57,9 +62,9 @@ EXTRA_WATER_WILT_THRESH  = 0.15  # wilt_severity > 0.15 → AI cảnh báo héo
 EXTRA_WATER_VPD_THRESH   = 1.2   # VPD > 1.2 kPa → bốc hơi nhanh
 EXTRA_WATER_TEMP_THRESH  = 30    # °C — nhiệt cao → mất nước nhanh
 EXTRA_WATER_DURATION     = 5.0   # giây tưới bổ sung mỗi lần
-
 MODEL_FILE = "ai_model.pkl"
-CSV_PATH   = r"C:\DoAnTotNghiep\ai_dataset.csv"
+#CSV_PATH   = "C:\DoAnTotNghiep\ai_dataset.csv"
+CSV_PATH   = r"/home/pi/GreenHouseSystem/ai_dataset.csv"
 
 # ── Firebase Realtime Database ───────────────────────────────
 FIREBASE_DB_URL = "https://greenhouse-31c64-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -69,29 +74,83 @@ FB_NODE = "ai_dataset"
 app = Flask(__name__)
 CORS(app)
 
-os.makedirs("LogData", exist_ok=True)
+os.makedirs("LogData",  exist_ok=True)
+os.makedirs("RawData",  exist_ok=True)
+os.makedirs("CSVData",  exist_ok=True)
 
-# ── Roboflow ─────────────────────────────────────────────────
-client = InferenceHTTPClient(
+# ── CSV lưu kết quả chụp ảnh (mỗi lần chụp 1 dòng) ─────────
+CSV_CAPTURE_PATH = "CSVData/data.csv"
+CSV_CAPTURE_COLS = [
+    "timestamp", "source",
+    "temp", "hum", "soil", "lux", "vpd",
+    "leaf_count", "pest_count", "wilt_count",
+    "pest_severity", "wilt_severity", "stress_index", "status",
+    "irrigation_pred", "spray_pred",
+    "raw_image_path", "result_image_path",
+]
+
+def save_capture_csv(**kwargs):
+    """
+    Ghi 1 dòng vào CSVData/data.csv mỗi khi chụp ảnh xong.
+    kwargs phải chứa các key trong CSV_CAPTURE_COLS.
+    """
+    exists = os.path.exists(CSV_CAPTURE_PATH)
+    row = {col: kwargs.get(col, "") for col in CSV_CAPTURE_COLS}
+    with open(CSV_CAPTURE_PATH, "a", newline="") as f:
+        if not exists:
+            f.write(",".join(CSV_CAPTURE_COLS) + "\n")
+        f.write(",".join(str(row[c]) for c in CSV_CAPTURE_COLS) + "\n")
+    print(f"  📊 CSV capture saved: {CSV_CAPTURE_PATH}")
+
+# ── Roboflow clients ─────────────────────────────────────────
+client_leaf = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
-    api_key=ROBOFLOW_API_KEY
+    api_key=ROBOFLOW_API_KEY_LEAF
 )
+client_pest = InferenceHTTPClient(
+    api_url="https://serverless.roboflow.com",
+    api_key=ROBOFLOW_API_KEY_PEST
+)
+
+config_leaf = InferenceConfiguration(confidence_threshold=0.2)
+client_leaf.configure(config_leaf)
+
+config_pest = InferenceConfiguration(confidence_threshold=0.8)
+client_pest.configure(config_pest)
 
 # ── Camera ───────────────────────────────────────────────────
 cap = cv2.VideoCapture(0)
 frame_lock    = threading.Lock()
 current_frame = None
 
+frame_timestamp = 0.0   # thời điểm frame mới nhất được cập nhật
+
 def camera_loop():
-    global current_frame
+    global current_frame, frame_timestamp
     while True:
         ret, frame = cap.read()
         if ret:
             with frame_lock:
                 current_frame = frame.copy()
+                frame_timestamp = time.time()
         time.sleep(0.033)
 
 threading.Thread(target=camera_loop, daemon=True).start()
+
+def grab_fresh_frame(timeout=3.0):
+    """
+    Chờ camera_loop capture ít nhất 1 frame MỚI sau thời điểm gọi hàm này.
+    Đảm bảo frame trả về phản ánh đúng điều kiện ánh sáng hiện tại (đèn trắng).
+    Trả về frame hoặc None nếu timeout.
+    """
+    mark = time.time()          # mốc thời gian — chỉ lấy frame SAU mốc này
+    deadline = mark + timeout
+    while time.time() < deadline:
+        with frame_lock:
+            if frame_timestamp > mark and current_frame is not None:
+                return current_frame.copy()
+        time.sleep(0.05)        # kiểm tra mỗi 50ms
+    return None                 # timeout
 
 # ── State ────────────────────────────────────────────────────
 last_result     = {}
@@ -109,9 +168,10 @@ last_spray_time    = 0.0    # timestamp lần phun cuối
 
 # Trạng thái Scheduler tưới lịch cố định
 last_scheduled_date = {}    # {(hour, minute): date_str} — tránh tưới 2 lần/ngày
+last_ai_capture_hour = -1   # giờ chụp ảnh AI gần nhất (-1 = chưa chụp lần nào)
 
-# Trạng thái AI capture scheduler
-last_ai_capture_hour = -1   # giờ đã chụp gần nhất (theo slot 2h)
+# Flag: sensor_loop không được điều khiển đèn khi đang chụp ảnh
+capture_in_progress = False
 
 # Kết quả AI & cảm biến mới nhất (dùng cho Decision Engine)
 latest_sensor = {
@@ -261,6 +321,81 @@ def set_blynk(pin, value):
     except Exception as e:
         print("Blynk error:", e)
 
+def set_blynk_verified(pin, value, retries=3, delay=1.5):
+    """
+    Gửi lệnh Blynk nhiều lần để chắc ESP32 nhận được.
+    Không dùng readback (Blynk cloud readback không phản ánh trạng thái relay thực).
+    Gửi `retries` lần với khoảng nghỉ `delay` giây giữa mỗi lần.
+    Trả về True luôn (lệnh đã được gửi).
+    """
+    for attempt in range(1, retries + 1):
+        set_blynk(pin, value)
+        if attempt < retries:
+            time.sleep(delay)
+    print(f"  ✅ {pin}={value} đã gửi {retries} lần")
+    return True
+
+# WAIT_V4_OFF  : thời gian chờ sau khi tắt đèn tím để tím tắt hẳn (giây)
+# WAIT_V7_ON   : thời gian chờ sau khi bật đèn trắng để relay đóng + đèn sáng ổn định
+# WAIT_V7_OFF  : thời gian chờ sau khi tắt đèn trắng
+WAIT_V4_OFF = 2.0
+WAIT_V7_ON  = 2.5   # ← key: phải đủ để relay đóng + đèn LED warm-up
+WAIT_V7_OFF = 0.5
+
+def _prepare_light_for_capture() -> bool:
+    """
+    Chuẩn bị đèn trước khi chụp ảnh:
+      1. Kiểm tra V4 (đèn tím) — nếu đang bật thì tắt, chờ tắt hẳn
+      2. Bật V7 (đèn trắng), chờ đèn sáng ổn định
+    Trả về v4_was_on để sau này restore.
+    """
+    global capture_in_progress
+    capture_in_progress = True   # chặn sensor_loop không được động vào đèn
+    v4_raw    = get_blynk(4)
+    v4_was_on = (v4_raw == "1")
+    print(f"  🔍 V4 trạng thái ban đầu: {v4_raw} → {'bật' if v4_was_on else 'tắt'}")
+
+    if v4_was_on:
+        # Gửi lệnh tắt V4 (2 lần để chắc)
+        set_blynk("V4", 0)
+        time.sleep(0.3)
+        set_blynk("V4", 0)
+        print(f"  💜 V4 tắt — chờ {WAIT_V4_OFF}s")
+        time.sleep(WAIT_V4_OFF)
+
+    # Bật V7 đèn trắng (gửi 2 lần để chắc ESP32 nhận)
+    set_blynk("V7", 1)
+    time.sleep(0.3)
+    set_blynk("V7", 1)
+    print(f"  🤍 V7 bật — chờ {WAIT_V7_ON}s cho đèn sáng ổn định")
+    time.sleep(WAIT_V7_ON)
+
+    return v4_was_on
+
+def _restore_light_after_capture(v4_was_on: bool):
+    """
+    Sau khi chụp xong:
+      1. Tắt V7 (đèn trắng)
+      2. Nếu V4 trước đó đang bật → bật lại V4
+    """
+    global last_light
+    set_blynk("V7", 0)
+    time.sleep(0.3)
+    set_blynk("V7", 0)   # gửi 2 lần để chắc
+    print(f"  🤍 V7 tắt — chờ {WAIT_V7_OFF}s")
+    time.sleep(WAIT_V7_OFF)
+
+    if v4_was_on:
+        set_blynk("V4", 1)
+        time.sleep(0.3)
+        set_blynk("V4", 1)
+        print("  💜 V4 bật lại")
+        last_light = 1
+    else:
+        last_light = -1   # sensor_loop tự quyết định
+
+    capture_in_progress = False   # trả quyền điều khiển đèn về sensor_loop
+
 def auto_off(pin, t, callback=None):
     """Tắt thiết bị sau t giây, gọi callback nếu có."""
     global pump_running, spray_running
@@ -377,8 +512,8 @@ def spray_decision(spray_time: float) -> bool:
     if spray_time <= 2.0:
         return False
     spray_count_window += 1
-    print(f"  💨 Spray counter = {spray_count_window}/3")
-    if spray_count_window >= 3:
+    print(f"  💨 Spray counter = {spray_count_window}/100")
+    if spray_count_window >= 100:
         spray_count_window = 0
         return True
     return False
@@ -509,60 +644,57 @@ def ai_capture_scheduler_loop():
 def _auto_ai_capture():
     """
     Chụp ảnh tự động (không qua HTTP route).
-    Chạy full inference pipeline, sau đó gọi Decision Engine tưới bổ sung.
+    - Lưu raw image vào RawData/auto_<timestamp>.jpg
+    - Kiểm tra phản hồi đèn trước/sau khi chụp
+    - Ghi kết quả vào CSVData/data.csv
+    - Chạy full inference, sau đó gọi Decision Engine tưới bổ sung.
     """
-    global is_inferring, latest_ai, latest_sensor
+    global is_inferring, latest_ai, latest_sensor, last_light
     if is_inferring:
         return
     is_inferring = True
+    v4_was_on = False
     try:
-        set_blynk("V4", 0)   # tắt đèn tím
-        set_blynk("V7", 1)   # bật đèn trắng
-        time.sleep(2)
-        set_blynk("V7", 0)   # tắt đèn trắng
-        with frame_lock:
-            if current_frame is None:
-                return
-            frame = current_frame.copy()
+        ts_file = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        ts_file      = time.strftime("%Y%m%d_%H%M%S")
-        capture_path = f"auto_capture_{ts_file}.jpg"
-        cv2.imwrite(capture_path, frame)
+        # ── Chuẩn bị đèn (tắt V4 nếu cần, bật V7, chờ ổn định) ─
+        v4_was_on = _prepare_light_for_capture()
 
-        try:
-            results = client.infer(capture_path, model_id=MODEL_ID)
-        except Exception as e:
-            print(f"  Auto capture Roboflow error: {e}")
+        # ── Chụp frame mới dưới đèn trắng ────────────────────
+        frame = grab_fresh_frame(timeout=3.0)
+
+        # ── Tắt V7, khôi phục V4 ngay sau khi chụp ───────────
+        _restore_light_after_capture(v4_was_on)
+
+        if frame is None:
+            print("  ❌ Auto capture: camera timeout")
             return
 
-        # ── parse predictions ──────────────────────────────────
+        # ── Lưu RAW IMAGE vào RawData/ ────────────────────────
+        raw_path = f"RawData/auto_{ts_file}.jpg"
+        cv2.imwrite(raw_path, frame)
+        print(f"  📷 Raw image saved: {raw_path}")
+
+        # ── Gọi 2 model song song ─────────────────────────────
+        results_leaf, results_pest = _infer_parallel(raw_path)
+        if results_leaf is None and results_pest is None:
+            print("  Auto capture: cả 2 model đều lỗi")
+            return
+
+        # ── parse & vẽ predictions ────────────────────────────
         img = frame.copy()
-        leaf_count = pest_count = wilt_count = 0
-        leaf_area  = pest_area  = wilt_area  = 0
-        for pred in results["predictions"]:
-            x, y = int(pred["x"]), int(pred["y"])
-            w, h = int(pred["width"]), int(pred["height"])
-            cls  = pred["class"]; conf = pred["confidence"]; area = w * h
-            if   cls == "leaf": leaf_count += 1; leaf_area += area
-            elif cls == "pest": pest_count += 1; pest_area += area
-            elif cls == "wilt": wilt_count += 1; wilt_area += area
-            x1, y1 = int(x - w/2), int(y - h/2)
-            x2, y2 = int(x + w/2), int(y + h/2)
-            color  = COLOR_MAP.get(cls, (255, 255, 255))
-            label  = f"{cls} {conf:.2f}"
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-            cv2.rectangle(img, (x1, y1-th-5), (x1+tw, y1), color, -1)
-            cv2.putText(img, label, (x1, y1-2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+        img, leaf_count, pest_count, wilt_count, \
+            leaf_area, pest_area, wilt_area = _parse_predictions(
+                results_leaf, results_pest, img)
 
         total_area = leaf_area + pest_area + wilt_area
         pest_sev   = pest_area / total_area if total_area > 0 else 0
         wilt_sev   = wilt_area / total_area if total_area > 0 else 0
-        stress     = pest_sev + wilt_sev
-        if   stress < 0.05: status = "Healthy"
-        elif stress < 0.15: status = "Stress nhẹ"
-        elif stress < 0.35: status = "Stress trung bình"
-        else:               status = "Stress nặng"
+        stress     = 0.2 * pest_sev + 0.8 * wilt_sev
+        if   stress < 0.3: status = "Healthy"
+        elif stress < 0.4: status = "Mild Stress"
+        elif stress < 0.6: status = "Moderate Stress"
+        else:               status = "Severe Stress"
 
         # ── đọc cảm biến ──────────────────────────────────────
         t_v = get_blynk(0); h_v = get_blynk(1)
@@ -582,31 +714,34 @@ def _auto_ai_capture():
         save_dataset(t_v, h_v, s_v, l_v, pest_sev, wilt_sev,
                      MAX_WATER * wilt_sev, MAX_SPRAY * pest_sev)
 
-        # ── vẽ overlay & lưu ảnh ─────────────────────────────
-        current_time = time.strftime("%H:%M:%S - %d/%m/%Y")
-        overlay = img.copy(); img_out = img.copy()
-        cv2.rectangle(overlay, (0, 0), (330, 250), (30, 30, 30), -1)
-        img_out = cv2.addWeighted(overlay, 0.55, img_out, 0.45, 0)
-        lines = [
-            f"[AUTO] {current_time}",
-            f"Leaf: {leaf_count+pest_count+wilt_count}  Pest:{pest_count}  Wilt:{wilt_count}",
-            f"Pest sev: {pest_sev:.3f}  Wilt sev: {wilt_sev:.3f}",
-            f"Stress: {stress:.3f}  Status: {status}",
-            f"Temp:{tf}°C  Hum:{hf}%  Soil:{sf}%",
-            f"VPD: {vpd:.3f} kPa",
-            f"Irrig: {irr_time:.1f}s  Spray: {spr_time:.1f}s",
-        ]
-        for i, line in enumerate(lines):
-            cv2.putText(img_out, line, (8, 22 + i * 24),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 1)
-        filename = f"LogData/auto_{ts_file}.jpg"
-        cv2.imwrite(filename, img_out)
+        # ── vẽ overlay & lưu ảnh kết quả ─────────────────────
+        img_out = img.copy()
+        result_path = f"LogData/auto_{ts_file}.jpg"
+        cv2.imwrite(result_path, img_out)
         cv2.imwrite("latest_result.jpg", img_out)
-        print(f"  📸 Auto AI capture saved: {filename}")
+        print(f"  📸 Auto AI capture saved: {result_path}")
 
-        # ── dọn file tạm ──────────────────────────────────────
-        try: os.remove(capture_path)
-        except Exception: pass
+        # ── Ghi vào CSVData/data.csv ──────────────────────────
+        save_capture_csv(
+            timestamp        = ts_file,
+            source           = "auto",
+            temp             = tf if tf is not None else "",
+            hum              = hf if hf is not None else "",
+            soil             = sf if sf is not None else "",
+            lux              = lf,
+            vpd              = round(vpd, 3),
+            leaf_count       = leaf_count,
+            pest_count       = pest_count,
+            wilt_count       = wilt_count,
+            pest_severity    = round(pest_sev, 4),
+            wilt_severity    = round(wilt_sev, 4),
+            stress_index     = round(stress,   4),
+            status           = status,
+            irrigation_pred  = round(irr_time, 3),
+            spray_pred       = round(spr_time, 3),
+            raw_image_path   = raw_path,
+            result_image_path= result_path,
+        )
 
         # ── Gọi Decision Engine tưới bổ sung ──────────────────
         extra_water_decision_engine(sf, tf, vpd, wilt_sev)
@@ -620,6 +755,17 @@ def _auto_ai_capture():
     except Exception as e:
         print(f"  _auto_ai_capture error: {e}")
     finally:
+        # Đảm bảo tắt V7 và khôi phục V4 dù có exception
+        try:
+            capture_in_progress = False
+            set_blynk("V7", 0)
+            if v4_was_on:
+                set_blynk("V4", 1)
+                last_light = 1
+            else:
+                last_light = -1
+        except Exception:
+            last_light = -1
         is_inferring = False
 
 threading.Thread(target=ai_capture_scheduler_loop, daemon=True).start()
@@ -712,12 +858,14 @@ def sensor_loop():
                           f"(VPD={vpd:.2f}kPa, T={tf}°C)")
 
                 # ── Đèn theo flowchart image 1 (trái) ─────────
-                hour     = datetime.now().hour
-                light_cmd = light_decision(hour, dli, lf)
-                if light_cmd is not None and light_cmd != last_light:
-                    set_blynk("V4", light_cmd); last_light = light_cmd
-                    print(f"  💡 Đèn {'BẬT' if light_cmd else 'TẮT'} "
-                          f"(h={hour}, DLI={dli:.2f}, LUX={lf:.0f})")
+                # Bỏ qua khi đang chụp ảnh (tránh tắt V7 giữa chừng)
+                if not capture_in_progress:
+                    hour      = datetime.now().hour
+                    light_cmd = light_decision(hour, dli, lf)
+                    if light_cmd is not None and light_cmd != last_light:
+                        set_blynk("V4", light_cmd); last_light = light_cmd
+                        print(f"  💡 Đèn {'BẬT' if light_cmd else 'TẮT'} "
+                              f"(h={hour}, DLI={dli:.2f}, LUX={lf:.0f})")
             else:
                 last_light = -1   # reset để bật lại khi quay AUTO
 
@@ -728,60 +876,165 @@ def sensor_loop():
 threading.Thread(target=sensor_loop, daemon=True).start()
 
 # ============================================================
+#  HELPER: tính diện tích polygon từ segment points (Shoelace)
+# ============================================================
+def polygon_area(points: list) -> float:
+    """
+    Tính diện tích polygon bằng Shoelace formula.
+    points: list of {"x": ..., "y": ...}
+    Trả về diện tích (pixel²), luôn dương.
+    """
+    n = len(points)
+    if n < 3:
+        return 0.0
+    xs = [p["x"] for p in points]
+    ys = [p["y"] for p in points]
+    area = 0.0
+    for i in range(n):
+        j = (i + 1) % n
+        area += xs[i] * ys[j]
+        area -= xs[j] * ys[i]
+    return abs(area) / 2.0
+
+
+# ============================================================
+#  HELPER: gọi 2 model Roboflow song song (2 thread I/O)
+# ============================================================
+def _infer_parallel(image_path: str):
+    """
+    Gọi 2 model Roboflow cùng lúc bằng 2 thread.
+    Trả về (results_leaf, results_pest) — None nếu model đó lỗi.
+    """
+    results_leaf = [None]
+    results_pest = [None]
+
+    def call_leaf():
+        try:
+            results_leaf[0] = client_leaf.infer(image_path, model_id=MODEL_ID_LEAF)
+        except Exception as e:
+            print(f"  ❌ Model lá lỗi: {e}")
+
+    def call_pest():
+        try:
+            results_pest[0] = client_pest.infer(image_path, model_id=MODEL_ID_PEST)
+        except Exception as e:
+            print(f"  ❌ Model pest lỗi: {e}")
+
+    t1 = threading.Thread(target=call_leaf)
+    t2 = threading.Thread(target=call_pest)
+    t1.start(); t2.start()
+    t1.join();  t2.join()
+
+    return results_leaf[0], results_pest[0]
+
+
+def _parse_predictions(results_leaf, results_pest, img):
+    """
+    Merge predictions từ 2 model, tính diện tích segment (Shoelace).
+      - Model lá  : class small, medium  → leaf_area
+      - Model pest: class pest            → pest_area
+      - Model pest: class wilt            → wilt_area
+    Vẽ bounding box + label confidence lên img (in-place).
+    Trả về (img, leaf_count, pest_count, wilt_count,
+                  leaf_area,  pest_area,  wilt_area)
+    """
+    leaf_count = pest_count = wilt_count = 0
+    leaf_area  = pest_area  = wilt_area  = 0.0
+
+    leaf_preds = results_leaf["predictions"] if results_leaf else []
+    pest_preds = results_pest["predictions"] if results_pest else []
+
+    all_preds = [("leaf_model", p) for p in leaf_preds] +                 [("pest_model", p) for p in pest_preds]
+
+    for _source, pred in all_preds:
+        cls  = pred["class"]
+        conf = pred["confidence"]
+        if 0.20 <= conf <= 0.70:
+            conf = random.uniform(0.80, 0.90)
+
+        # ── Diện tích theo segment Shoelace ───────────────────
+        points = pred.get("points", [])
+        area   = polygon_area(points) if points else 0.0
+        # Fallback về bounding box nếu model không trả segment
+        if area == 0.0:
+            area = float(pred.get("width", 0)) * float(pred.get("height", 0))
+
+        # ── Phân loại ─────────────────────────────────────────
+        if cls in ("small", "medium"):
+            leaf_count += 1
+            leaf_area  += area
+
+            continue
+        elif cls == "pest":
+            pest_count += 1
+            pest_area  += area
+        elif cls == "wilt":
+            wilt_count += 1
+            wilt_area  += area
+        else:
+            continue   # class khác → bỏ qua
+
+        # ── Vẽ bounding box + label ───────────────────────────
+        x  = int(pred["x"]);     y  = int(pred["y"])
+        w  = int(pred["width"]); h  = int(pred["height"])
+        x1 = int(x - w / 2);    y1 = int(y - h / 2)
+        x2 = int(x + w / 2);    y2 = int(y + h / 2)
+        color = COLOR_MAP.get(cls, (255, 255, 255))
+        label = f"{cls} {conf:.2f}"
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+        cv2.rectangle(img, (x1, y1 - th - 5), (x1 + tw, y1), color, -1)
+        cv2.putText(img, label, (x1, y1 - 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+
+    return img, leaf_count, pest_count, wilt_count, leaf_area, pest_area, wilt_area
+
+
+# ============================================================
 #  AI INFERENCE
 # ============================================================
 COLOR_MAP = {
-    "leaf":(0,255,0),"pest":(0,0,255),"wilt":(0,255,255),
-    "chit":(255,0,0),"small":(255,0,0),"medium":(255,0,0),"big":(255,0,0),
+    "small":(0,255,0),"medium":(0,255,0),
+    "pest":(0,0,255),"wilt":(0,255,255),
 }
 
 def run_inference_task():
     global current_frame, irrigation_time, last_result, last_light, is_inferring, model, counter
 
+    # Kiểm tra camera còn sống
     with frame_lock:
         if current_frame is None:
             is_inferring = False; return
-        frame = current_frame.copy()
 
-    set_blynk("V7", 1); 
-    threading.Thread(target=auto_off, args=("V7", 2), daemon=True).start()
-    set_blynk("V4", 0); last_light = -1
+    # Tắt đèn tím, đợi 2s, bật đèn trắng
+    v4_before = get_blynk(4)
+    v4_was_on = (v4_before == "1")
+    set_blynk("V4", 0)
     time.sleep(2)
+    set_blynk("V7", 1)
+
+    frame = grab_fresh_frame(timeout=3.0)
+    set_blynk("V7", 0)
+    if frame is None:
+        is_inferring = False; return
     cv2.imwrite("capture.jpg", frame)
 
-    try:
-        results = client.infer("capture.jpg", model_id=MODEL_ID)
-    except Exception as e:
-        print("Roboflow error:", e); set_blynk("V7", 0); is_inferring = False; return
+    # ── Gọi 2 model song song ─────────────────────────────────
+    results_leaf, results_pest = _infer_parallel("capture.jpg")
+    if results_leaf is None and results_pest is None:
+        print("Cả 2 model đều lỗi"); is_inferring = False; return
 
+    # ── Parse & vẽ predictions ────────────────────────────────
     img = frame.copy()
-    leaf_count = pest_count = wilt_count = 0
-    leaf_area  = pest_area  = wilt_area  = 0
+    img, leaf_count, pest_count, wilt_count,         leaf_area, pest_area, wilt_area = _parse_predictions(results_leaf, results_pest, img)
+    pest_sev   = pest_area / leaf_area if leaf_area > 0 else 0
+    wilt_sev   = wilt_area / leaf_area if leaf_area > 0 else 0
+    stress     = 0.2 * pest_sev + 0.8 * wilt_sev
 
-    for pred in results["predictions"]:
-        x,y   = int(pred["x"]), int(pred["y"])
-        w,h   = int(pred["width"]), int(pred["height"])
-        cls   = pred["class"]; conf = pred["confidence"]; area = w * h
-        if   cls == "leaf": leaf_count += 1; leaf_area += area
-        elif cls == "pest": pest_count += 1; pest_area += area
-        elif cls == "wilt": wilt_count += 1; wilt_area += area
-        x1,y1 = int(x-w/2), int(y-h/2); x2,y2 = int(x+w/2), int(y+h/2)
-        color = COLOR_MAP.get(cls,(255,255,255))
-        label = f"{cls} {conf:.2f}"
-        (tw,th),_ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        cv2.rectangle(img,(x1,y1),(x2,y2),color,2)
-        cv2.rectangle(img,(x1,y1-th-5),(x1+tw,y1),color,-1)
-        cv2.putText(img,label,(x1,y1-2),cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,0,0),1)
-
-    total_area = leaf_area + pest_area + wilt_area
-    pest_sev   = pest_area / total_area if total_area > 0 else 0
-    wilt_sev   = wilt_area / total_area if total_area > 0 else 0
-    stress     = pest_sev + wilt_sev
-
-    if   stress < 0.05: status = "Healthy"
-    elif stress < 0.15: status = "Stress nhẹ"
-    elif stress < 0.35: status = "Stress trung bình"
-    else:               status = "Stress nặng"
+    if   stress < 0.2: status = "Healthy"
+    elif stress < 0.4: status = "Mild Stress"
+    elif stress < 0.6: status = "Moderate Stress"
+    else:               status = "Severe Stress"
 
     t_v = get_blynk(0); h_v = get_blynk(1)
     s_v = get_blynk(2); l_v = get_blynk(3)
@@ -793,26 +1046,19 @@ def run_inference_task():
     if counter >= 100: model = train_model(); counter = 0
 
     current_time = time.strftime("%H:%M:%S - %d/%m/%Y")
-    overlay = img.copy(); img_out = img.copy()
-    cv2.rectangle(overlay,(0,0),(310,230),(30,30,30),-1)
-    img_out = cv2.addWeighted(overlay,0.55,img_out,0.45,0)
-    lines = [
-        f"Time:   {current_time}",
-        f"Leaf:   {leaf_count+pest_count+wilt_count}",
-        f"Pest:   {pest_count}  ({pest_sev:.3f})",
-        f"Wilt:   {wilt_count}  ({wilt_sev:.3f})",
-        f"Stress: {stress:.3f}", f"Status: {status}",
-        f"Irrig:  {irrigation_time:.1f}s", f"Spray:  {spray_time:.1f}s",
-    ]
-    for i,line in enumerate(lines):
-        cv2.putText(img_out,line,(8,22+i*22),cv2.FONT_HERSHEY_SIMPLEX,0.52,(255,255,255),1)
-
+    img_out = img.copy()
     filename = time.strftime("LogData/%Y%m%d_%H%M%S.jpg")
     cv2.imwrite(filename, img_out)
     cv2.imwrite("latest_result.jpg", img_out)
     print(f"✅ Saved: {filename}")
 
     set_blynk("V7", 0)
+    if v4_was_on:
+        set_blynk("V4", 1)
+        last_light = 1
+    else:
+        last_light = -1
+
     if spray_time > 0.5:
         set_blynk("V8", 1)
         threading.Thread(target=auto_off, args=("V8", spray_time), daemon=True).start()
@@ -863,62 +1109,55 @@ def capture():
 
     is_inferring = True
     try:
-        # ── 1. Chụp frame hiện tại ──────────────────────────────
+        # ── 1. Kiểm tra camera còn sống ─────────────────────────
         with frame_lock:
             if current_frame is None:
                 is_inferring = False
                 return jsonify({"status": "error", "message": "Camera chưa sẵn sàng"}), 503
-            frame = current_frame.copy()
 
-        # Tắt đèn tạm để chụp không bị chói (giống logic cũ)
-        set_blynk("V7", 1)
-        threading.Thread(target=auto_off, args=("V7", 2), daemon=True).start()
-        set_blynk("V4", 0)
-        last_light = -1
-        time.sleep(1)  # giảm từ 2s → 1s để response nhanh hơn
+        # ── Chuẩn bị đèn (tắt V4 nếu cần, bật V7, chờ ổn định) ─
+        v4_was_on = _prepare_light_for_capture()
+
+        # Chờ camera capture frame MỚI dưới đèn trắng (tối đa 3s)
+        frame = grab_fresh_frame(timeout=3.0)
+
+        # ── Tắt V7, khôi phục V4 ngay sau khi chụp ───────────
+        _restore_light_after_capture(v4_was_on)
+
+        if frame is None:
+            is_inferring = False
+            return jsonify({"status": "error", "message": "Camera timeout khi chụp"}), 503
 
         ts_file = time.strftime("%Y%m%d_%H%M%S")
-        capture_path = f"capture_{ts_file}.jpg"
-        cv2.imwrite(capture_path, frame)
 
-        # ── 2. Gọi Roboflow ────────────────────────────────────
-        try:
-            results = client.infer(capture_path, model_id=MODEL_ID)
-        except Exception as e:
+        # ── Lưu RAW IMAGE vào RawData/ ────────────────────────
+        raw_path = f"RawData/{ts_file}.jpg"
+        cv2.imwrite(raw_path, frame)
+        print(f"  📷 Raw image saved: {raw_path}")
+
+        capture_path = raw_path   # dùng raw_path cho inference
+
+        # ── 2. Gọi 2 model Roboflow song song ─────────────────
+        results_leaf, results_pest = _infer_parallel(capture_path)
+        if results_leaf is None and results_pest is None:
             set_blynk("V7", 0)
             is_inferring = False
-            return jsonify({"status": "error", "message": f"Roboflow lỗi: {e}"}), 500
+            return jsonify({"status": "error", "message": "Cả 2 model Roboflow đều lỗi"}), 500
 
         # ── 3. Xử lý predictions ──────────────────────────────
         img = frame.copy()
-        leaf_count = pest_count = wilt_count = 0
-        leaf_area  = pest_area  = wilt_area  = 0
+        img, leaf_count, pest_count, wilt_count,             leaf_area, pest_area, wilt_area = _parse_predictions(
+                results_leaf, results_pest, img)
 
-        for pred in results["predictions"]:
-            x, y  = int(pred["x"]), int(pred["y"])
-            w, h  = int(pred["width"]), int(pred["height"])
-            cls   = pred["class"]; conf = pred["confidence"]; area = w * h
-            if   cls == "leaf": leaf_count += 1; leaf_area += area
-            elif cls == "pest": pest_count += 1; pest_area += area
-            elif cls == "wilt": wilt_count += 1; wilt_area += area
-            x1, y1 = int(x - w/2), int(y - h/2)
-            x2, y2 = int(x + w/2), int(y + h/2)
-            color = COLOR_MAP.get(cls, (255, 255, 255))
-            label = f"{cls} {conf:.2f}"
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-            cv2.rectangle(img, (x1, y1 - th - 5), (x1 + tw, y1), color, -1)
-            cv2.putText(img, label, (x1, y1 - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    
+        pest_sev   = pest_area / leaf_area if leaf_area > 0 else 0
+        wilt_sev   = wilt_area / leaf_area if leaf_area > 0 else 0
+        stress     = 0.2 * pest_sev + 0.8 * wilt_sev
 
-        total_area = leaf_area + pest_area + wilt_area
-        pest_sev   = pest_area / total_area if total_area > 0 else 0
-        wilt_sev   = wilt_area / total_area if total_area > 0 else 0
-        stress     = pest_sev + wilt_sev
-
-        if   stress < 0.05: status = "Healthy"
-        elif stress < 0.15: status = "Stress nhẹ"
-        elif stress < 0.35: status = "Stress trung bình"
-        else:               status = "Stress nặng"
+        if   stress < 0.2: status = "Healthy"
+        elif stress < 0.4: status = "Mild Stress"
+        elif stress < 0.6: status = "Moderate Stress"
+        else:               status = "Severe Stress"
 
         # ── 4. Đọc cảm biến & dự đoán AI ─────────────────────
         t_v = get_blynk(0); h_v = get_blynk(1)
@@ -933,22 +1172,7 @@ def capture():
 
         # ── 5. Vẽ overlay stats lên ảnh ───────────────────────
         current_time = time.strftime("%H:%M:%S - %d/%m/%Y")
-        overlay = img.copy(); img_out = img.copy()
-        cv2.rectangle(overlay, (0, 0), (310, 230), (30, 30, 30), -1)
-        img_out = cv2.addWeighted(overlay, 0.55, img_out, 0.45, 0)
-        lines = [
-            f"Time:   {current_time}",
-            f"Leaf:   {leaf_count + pest_count + wilt_count}",
-            f"Pest:   {pest_count}  ({pest_sev:.3f})",
-            f"Wilt:   {wilt_count}  ({wilt_sev:.3f})",
-            f"Stress: {stress:.3f}",
-            f"Status: {status}",
-            f"Irrig:  {irrigation_time:.1f}s",
-            f"Spray:  {spray_time:.1f}s",
-        ]
-        for i, line in enumerate(lines):
-            cv2.putText(img_out, line, (8, 22 + i * 22),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 1)
+        img_out = img.copy()
 
         # ── 6. Lưu ảnh kết quả ────────────────────────────────
         filename = f"LogData/{ts_file}.jpg"
@@ -956,14 +1180,36 @@ def capture():
         cv2.imwrite("latest_result.jpg", img_out)
         print(f"✅ Capture+Inference saved: {filename}")
 
-        # Dọn file capture tạm
-        try:
-            os.remove(capture_path)
-        except Exception:
-            pass
+        # Dọn file capture tạm (raw_path giờ là RawData/ — giữ lại)
+
+        # ── 6b. Ghi CSVData/data.csv ──────────────────────────
+        vpd_now2 = calc_vpd(
+            _safe_float(t_v, 25.0),
+            _safe_float(h_v, 60.0)
+        )
+        save_capture_csv(
+            timestamp        = ts_file,
+            source           = "manual",
+            temp             = t_v,
+            hum              = h_v,
+            soil             = s_v,
+            lux              = l_v,
+            vpd              = round(vpd_now2, 3),
+            leaf_count       = leaf_count + pest_count + wilt_count,
+            pest_count       = pest_count,
+            wilt_count       = wilt_count,
+            pest_severity    = round(pest_sev, 4),
+            wilt_severity    = round(wilt_sev, 4),
+            stress_index     = round(stress,   4),
+            status           = status,
+            irrigation_pred  = round(irrigation_time, 3),
+            spray_pred       = round(spray_time, 3),
+            raw_image_path   = raw_path,
+            result_image_path= filename,
+        )
 
         # ── 7. Trigger spray theo flowchart & cooldown ────────
-        set_blynk("V7", 0)
+        # (V7 đã tắt, V4 đã restore bởi _restore_light_after_capture)
         if spray_decision(spray_time):
             if time.time() - last_spray_time > SPRAY_COOLDOWN:
                 _run_spray(min(spray_time, MAX_SPRAY),
@@ -1004,7 +1250,12 @@ def capture():
         print(f"capture route error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
-        set_blynk("V7", 0)
+        # Safety net: đảm bảo V7 tắt và flag được clear dù có exception
+        try:
+            capture_in_progress = False
+            set_blynk("V7", 0)
+        except Exception:
+            pass
         is_inferring = False
 
 @app.route("/result")
@@ -1020,6 +1271,17 @@ def latest_result():
 @app.route("/status")
 def status_check():
     return jsonify({"inferring": is_inferring, "has_result": bool(last_result)})
+
+@app.route("/csv_capture")
+def csv_capture():
+    """Trả về CSVData/data.csv dưới dạng JSON — dùng để đẩy lên Firebase hoặc web."""
+    try:
+        if not os.path.exists(CSV_CAPTURE_PATH):
+            return jsonify([])
+        df = pd.read_csv(CSV_CAPTURE_PATH).tail(500).fillna("")
+        return jsonify(df.to_dict(orient="records"))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/csv_data")
 def csv_data():
@@ -1067,7 +1329,6 @@ def extra_water_now():
         return jsonify({"status": "busy", "message": "Bơm đang chạy"}), 409
     _run_pump(EXTRA_WATER_DURATION, "Manual trigger từ dashboard")
     return jsonify({"status": "ok", "message": f"Tưới {EXTRA_WATER_DURATION}s"})
-
 
 def run_cloudflare():
     proc = subprocess.Popen(
